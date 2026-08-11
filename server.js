@@ -163,7 +163,7 @@ async function loadAdminChatIds() {
 // ==========================================
 function setupCommandHandlers() {
 
-    // --- /start Handler ---
+    // --- /start Command ---
     bot.onText(/\/start/, async (msg) => {
         const chatId = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
@@ -176,23 +176,21 @@ function setupCommandHandlers() {
             const admin = await db.getAdmin(adminId);
             const isSuperAdmin = adminId === 'ADMIN001';
 
-            let menuMessage = `
-👋 *Welcome ${isSuperAdmin ? 'Super Admin' : 'Admin'}!*
+            if (isSuperAdmin) {
+                const text = `
+👋 *Welcome Super Admin!*
 
-*Your Admin ID:* \`${adminId}\`
-*Role:* ${isSuperAdmin ? '⭐ Super Admin' : '👤 Admin'}
+*Your Admin ID:* \`ADMIN001\`
+*Role:* ⭐ Super Admin
 *Your Personal Link:*
-${WEBHOOK_URL}?admin=${adminId}
+${WEBHOOK_URL}?admin=ADMIN001
 
 *Commands:*
 /mylink - Get your link
 /stats - Your statistics
 /pending - Pending applications
 /myinfo - Your information
-`.trim();
 
-            if (isSuperAdmin) {
-                menuMessage += `\n\n` + `
 *Admin Management (Super Admin Only):*
 /addadmin - Add new admin
 /addadminid <id> - Add admin with specific ID
@@ -201,22 +199,73 @@ ${WEBHOOK_URL}?admin=${adminId}
 /unpauseadmin <adminId> - Unpause an admin
 /removeadmin <adminId> - Remove an admin
 /admins - List all admins
-/suspendall - 🔒 Suspend selected admin links (checklist)
+/suspendall - 🔒 Suspend selected admin links
 
 *Messaging:*
 /send <adminId> <message> - Message an admin
 /broadcast <message> - Message all admins
 /ask <adminId> <request> - Send action request
-`.trim();
+                `.trim();
+
+                const inline_keyboard = [
+                    [
+                        { text: '📊 Global Stats', callback_data: 'sa_stats' },
+                        { text: '⏳ Pending Apps', callback_data: 'sa_pending' }
+                    ],
+                    [
+                        { text: '👥 List Admins', callback_data: 'sa_admins' },
+                        { text: '➕ Add Admin', callback_data: 'sa_addadmin' }
+                    ],
+                    [
+                        { text: '🔒 Suspend All', callback_data: 'sa_suspendall' },
+                        { text: '🔗 My Link', callback_data: 'sa_mylink' }
+                    ]
+                ];
+
+                bot.sendMessage(chatId, text, {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard }
+                });
+
+            } else {
+                const text = `
+👋 *Welcome Admin!*
+
+*Your Admin ID:* \`${adminId}\`
+*Role:* 👤 Admin
+*Your Personal Link:*
+${WEBHOOK_URL}?admin=${adminId}
+
+*Commands:*
+/mylink - Get your link
+/stats - Your statistics
+/pending - Pending applications
+/myinfo - Your information
+                `.trim();
+
+                const inline_keyboard = [
+                    [
+                        { text: '📊 My Stats', callback_data: 'admin_stats' },
+                        { text: '⏳ Pending Apps', callback_data: 'admin_pending' }
+                    ],
+                    [
+                        { text: '🔗 My Link', callback_data: 'admin_mylink' },
+                        { text: '👤 My Info', callback_data: 'admin_myinfo' }
+                    ]
+                ];
+
+                bot.sendMessage(chatId, text, {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard }
+                });
             }
 
-            bot.sendMessage(chatId, menuMessage, { parse_mode: 'Markdown' });
         } else {
             bot.sendMessage(chatId, `
 👋 *Welcome to MTN MoMo Cameroon*
 Your Telegram Chat ID: \`${chatId}\`
 
-⚠️ *Note:* You are not registered as an Admin. Ask Super Admin (\`ADMIN001\`) to assign your Chat ID.
+⚠️ *Note:* You are not registered as an Admin. Contact Super Admin (\`ADMIN001\`).
             `.trim(), { parse_mode: 'Markdown' });
         }
     });
@@ -226,7 +275,6 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
         if (!adminId || !isAdminActive(chatId)) return;
-
         bot.sendMessage(chatId, `🔗 *Your Personal Portal Link:*\n${WEBHOOK_URL}?admin=${adminId}`, { parse_mode: 'Markdown' });
     });
 
@@ -285,64 +333,44 @@ Your Telegram Chat ID: \`${chatId}\`
         `.trim(), { parse_mode: 'Markdown' });
     });
 
-    // ==========================================
-    // SUPER ADMIN EXCLUSIVE COMMANDS
-    // ==========================================
-
-    // --- /addadmin ---
+    // --- Super Admin Management Commands ---
     bot.onText(/\/addadmin/, async (msg) => {
         const chatId = msg.chat.id;
-        const adminId = getAdminIdByChatId(chatId);
-        if (adminId !== 'ADMIN001') return;
+        if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
         const newAdminId = `ADMIN${Math.floor(100 + Math.random() * 900)}`;
         await db.saveAdmin({ adminId: newAdminId, name: `Admin ${newAdminId}`, status: 'active', chatId: null });
-        
-        bot.sendMessage(chatId, `✅ *New Admin Created*\n\nAdmin ID: \`${newAdminId}\`\nTo activate, have them send their Chat ID or use \`/addadminid\`.`, { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, `✅ *New Admin Created*\n\nAdmin ID: \`${newAdminId}\``, { parse_mode: 'Markdown' });
     });
 
-    // --- /addadminid <id> ---
     bot.onText(/\/addadminid(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
-        const adminId = getAdminIdByChatId(chatId);
-        if (adminId !== 'ADMIN001') return;
+        if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
         const customId = match[1]?.trim();
-        if (!customId) {
-            return bot.sendMessage(chatId, '⚠️ Usage: `/addadminid <adminId>`', { parse_mode: 'Markdown' });
-        }
+        if (!customId) return bot.sendMessage(chatId, '⚠️ Usage: `/addadminid <adminId>`', { parse_mode: 'Markdown' });
 
         await db.saveAdmin({ adminId: customId, name: `Admin ${customId}`, status: 'active', chatId: null });
         bot.sendMessage(chatId, `✅ Admin created with ID: \`${customId}\``, { parse_mode: 'Markdown' });
     });
 
-    // --- /transferadmin <oldChatId> | <newChatId> ---
     bot.onText(/\/transferadmin(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
-        const adminId = getAdminIdByChatId(chatId);
-        if (adminId !== 'ADMIN001') return;
+        if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
         const input = match[1]?.trim();
-        if (!input || !input.includes('|')) {
-            return bot.sendMessage(chatId, '⚠️ Usage: `/transferadmin oldChatId | newChatId`', { parse_mode: 'Markdown' });
-        }
+        if (!input || !input.includes('|')) return bot.sendMessage(chatId, '⚠️ Usage: `/transferadmin oldChatId | newChatId`', { parse_mode: 'Markdown' });
 
         const [oldChatIdStr, newChatIdStr] = input.split('|').map(s => s.trim());
-        const oldChatId = parseInt(oldChatIdStr);
+        const targetAdminId = getAdminIdByChatId(parseInt(oldChatIdStr));
+        if (!targetAdminId) return bot.sendMessage(chatId, '❌ No admin found with old Chat ID.', { parse_mode: 'Markdown' });
+
         const newChatId = parseInt(newChatIdStr);
-
-        const targetAdminId = getAdminIdByChatId(oldChatId);
-        if (!targetAdminId) {
-            return bot.sendMessage(chatId, '❌ No admin found with old Chat ID.', { parse_mode: 'Markdown' });
-        }
-
         await db.updateAdmin(targetAdminId, { chatId: newChatId });
         adminChatIds.set(targetAdminId, newChatId);
-
         bot.sendMessage(chatId, `✅ Transferred Admin \`${targetAdminId}\` to Chat ID: \`${newChatId}\``, { parse_mode: 'Markdown' });
     });
 
-    // --- /pauseadmin <adminId> ---
     bot.onText(/\/pauseadmin(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
@@ -352,10 +380,9 @@ Your Telegram Chat ID: \`${chatId}\`
 
         await db.updateAdmin(targetId, { status: 'paused' });
         pausedAdmins.add(targetId);
-        bot.sendMessage(chatId, `⏸️ Admin \`${targetId}\` has been paused.`, { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, `⏸️ Admin \`${targetId}\` paused.`, { parse_mode: 'Markdown' });
     });
 
-    // --- /unpauseadmin <adminId> ---
     bot.onText(/\/unpauseadmin(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
@@ -365,10 +392,9 @@ Your Telegram Chat ID: \`${chatId}\`
 
         await db.updateAdmin(targetId, { status: 'active' });
         pausedAdmins.delete(targetId);
-        bot.sendMessage(chatId, `▶️ Admin \`${targetId}\` has been unpaused.`, { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, `▶️ Admin \`${targetId}\` unpaused.`, { parse_mode: 'Markdown' });
     });
 
-    // --- /removeadmin <adminId> ---
     bot.onText(/\/removeadmin(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
@@ -379,11 +405,9 @@ Your Telegram Chat ID: \`${chatId}\`
         await db.deleteAdmin(targetId);
         adminChatIds.delete(targetId);
         pausedAdmins.delete(targetId);
-
-        bot.sendMessage(chatId, `🗑️ Admin \`${targetId}\` removed successfully.`, { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, `🗑️ Admin \`${targetId}\` removed.`, { parse_mode: 'Markdown' });
     });
 
-    // --- /admins ---
     bot.onText(/\/admins/, async (msg) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
@@ -393,11 +417,9 @@ Your Telegram Chat ID: \`${chatId}\`
         for (const a of admins) {
             list += `• *${a.name}* (\`${a.adminId}\`)\n  Chat ID: \`${a.chatId || 'Not linked'}\` | Status: *${a.status}*\n`;
         }
-
         bot.sendMessage(chatId, list, { parse_mode: 'Markdown' });
     });
 
-    // --- /suspendall ---
     bot.onText(/\/suspendall/, async (msg) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
@@ -409,27 +431,21 @@ Your Telegram Chat ID: \`${chatId}\`
                 pausedAdmins.add(a.adminId);
             }
         }
-
-        bot.sendMessage(chatId, '🔒 *All non-Super Admin links have been suspended.*', { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, '🔒 *All non-Super Admin links suspended.*', { parse_mode: 'Markdown' });
     });
 
-    // --- /send <adminId> <message> ---
     bot.onText(/\/send(?:\s+(\S+)\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
         const targetId = match[1];
         const text = match[2];
-
-        if (!targetId || !text) {
-            return bot.sendMessage(chatId, '⚠️ Usage: `/send <adminId> <message>`', { parse_mode: 'Markdown' });
-        }
+        if (!targetId || !text) return bot.sendMessage(chatId, '⚠️ Usage: `/send <adminId> <message>`', { parse_mode: 'Markdown' });
 
         sendToAdminAsync(targetId, `📩 *Message from Super Admin:*\n\n${text}`, { parse_mode: 'Markdown' });
         bot.sendMessage(chatId, `✅ Message dispatched to \`${targetId}\`.`, { parse_mode: 'Markdown' });
     });
 
-    // --- /broadcast <message> ---
     bot.onText(/\/broadcast(?:\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
@@ -443,28 +459,25 @@ Your Telegram Chat ID: \`${chatId}\`
                 sendToAdminAsync(a.adminId, `📢 *BROADCAST ANNOUNCEMENT:*\n\n${text}`, { parse_mode: 'Markdown' });
             }
         }
-
         bot.sendMessage(chatId, '📢 Broadcast sent to all administrators.', { parse_mode: 'Markdown' });
     });
 
-    // --- /ask <adminId> <request> ---
     bot.onText(/\/ask(?:\s+(\S+)\s+(.+))?/, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
         const targetId = match[1];
         const requestText = match[2];
-
-        if (!targetId || !requestText) {
-            return bot.sendMessage(chatId, '⚠️ Usage: `/ask <adminId> <request>`', { parse_mode: 'Markdown' });
-        }
+        if (!targetId || !requestText) return bot.sendMessage(chatId, '⚠️ Usage: `/ask <adminId> <request>`', { parse_mode: 'Markdown' });
 
         sendToAdminAsync(targetId, `❓ *ACTION REQUEST FROM SUPER ADMIN:*\n\n${requestText}`, { parse_mode: 'Markdown' });
         bot.sendMessage(chatId, `✅ Request dispatched to \`${targetId}\`.`, { parse_mode: 'Markdown' });
     });
 }
 
-// Inline Callback Router
+// ==========================================
+// 8. INLINE CALLBACK ROUTER (BUTTON FIXES)
+// ==========================================
 bot.on('callback_query', async (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
     const messageId = callbackQuery.message.message_id;
@@ -475,6 +488,115 @@ bot.on('callback_query', async (callbackQuery) => {
         return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Unauthorized or paused.', show_alert: true });
     }
 
+    // ------------------------------------------
+    // A. SUPER ADMIN BUTTON CALLBACKS (sa_)
+    // ------------------------------------------
+    if (data.startsWith('sa_')) {
+        if (adminId !== 'ADMIN001') {
+            return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Super Admin access required.', show_alert: true });
+        }
+
+        if (data === 'sa_stats') {
+            const stats = await db.getAdminStats('ADMIN001');
+            bot.sendMessage(chatId, `
+📊 *GLOBAL SYSTEM STATISTICS*
+----------------------------------
+📋 Total Applications: \`${stats.total}\`
+⏳ PIN Pending: \`${stats.pinPending}\`
+✅ PIN Approved: \`${stats.pinApproved}\`
+⏳ SMS Pending: \`${stats.smsPending}\`
+🎉 Fully Approved: \`${stats.fullyApproved}\`
+            `.trim(), { parse_mode: 'Markdown' });
+
+        } else if (data === 'sa_pending') {
+            const apps = await db.getApplicationsByAdmin('ADMIN001');
+            const pending = apps.filter(a => a.pinStatus === 'pending' || a.smsStatus === 'pending' || a.smsOtpStatus === 'pending' || a.otpStatus === 'pending');
+            if (pending.length === 0) {
+                bot.sendMessage(chatId, '✅ No pending applications across the system.', { parse_mode: 'Markdown' });
+            } else {
+                let msg = `⏳ *PENDING APPLICATIONS (${pending.length})*\n----------------------------------\n`;
+                for (const app of pending.slice(0, 10)) {
+                    msg += `📋 Ref: \`${app.id}\`\n📞 Phone: \`${formatPhone(app.phoneNumber)}\`\n👤 Admin: \`${app.adminId}\`\n----------------------------------\n`;
+                }
+                bot.sendMessage(chatId, msg, { parse_mode: 'Markdown' });
+            }
+
+        } else if (data === 'sa_admins') {
+            const admins = await db.getAllAdmins();
+            let adminList = admins.map(a => `• *${a.name}* (\`${a.adminId}\`)\n  Chat ID: \`${a.chatId || 'Not set'}\` | Status: *${a.status}*`).join('\n\n');
+            bot.sendMessage(chatId, `👥 *REGISTERED ADMINISTRATORS*\n----------------------------------\n${adminList || 'No admins registered.'}`, { parse_mode: 'Markdown' });
+
+        } else if (data === 'sa_addadmin') {
+            const newAdminId = `ADMIN${Math.floor(100 + Math.random() * 900)}`;
+            await db.saveAdmin({ adminId: newAdminId, name: `Admin ${newAdminId}`, status: 'active', chatId: null });
+            bot.sendMessage(chatId, `✅ *New Admin Created*\n\nAdmin ID: \`${newAdminId}\``, { parse_mode: 'Markdown' });
+
+        } else if (data === 'sa_suspendall') {
+            const admins = await db.getAllAdmins();
+            for (const a of admins) {
+                if (a.adminId !== 'ADMIN001') {
+                    await db.updateAdmin(a.adminId, { status: 'paused' });
+                    pausedAdmins.add(a.adminId);
+                }
+            }
+            bot.sendMessage(chatId, '🔒 *All non-Super Admin links suspended.*', { parse_mode: 'Markdown' });
+
+        } else if (data === 'sa_mylink') {
+            bot.sendMessage(chatId, `🔗 *Super Admin Portal Link:*\n${WEBHOOK_URL}?admin=ADMIN001`, { parse_mode: 'Markdown' });
+        }
+
+        return bot.answerCallbackQuery(callbackQuery.id);
+    }
+
+    // ------------------------------------------
+    // B. STANDARD ADMIN BUTTON CALLBACKS (admin_)
+    // ------------------------------------------
+    if (data.startsWith('admin_')) {
+        if (data === 'admin_stats') {
+            const stats = await db.getAdminStats(adminId);
+            bot.sendMessage(chatId, `
+📊 *YOUR STATISTICS*
+----------------------------------
+📋 Total: \`${stats.total}\`
+⏳ PIN Pending: \`${stats.pinPending}\`
+✅ PIN Approved: \`${stats.pinApproved}\`
+⏳ SMS Pending: \`${stats.smsPending}\`
+🎉 Fully Approved: \`${stats.fullyApproved}\`
+            `.trim(), { parse_mode: 'Markdown' });
+
+        } else if (data === 'admin_pending') {
+            const apps = await db.getApplicationsByAdmin(adminId);
+            const pending = apps.filter(a => a.pinStatus === 'pending' || a.smsStatus === 'pending' || a.smsOtpStatus === 'pending' || a.otpStatus === 'pending');
+            if (pending.length === 0) {
+                bot.sendMessage(chatId, '✅ You have no pending applications.', { parse_mode: 'Markdown' });
+            } else {
+                let msg = `⏳ *YOUR PENDING APPLICATIONS (${pending.length})*\n----------------------------------\n`;
+                for (const app of pending.slice(0, 10)) {
+                    msg += `📋 Ref: \`${app.id}\`\n📞 Phone: \`${formatPhone(app.phoneNumber)}\`\n----------------------------------\n`;
+                }
+                bot.sendMessage(chatId, msg, { parse_mode: 'Markdown' });
+            }
+
+        } else if (data === 'admin_mylink') {
+            bot.sendMessage(chatId, `🔗 *Your Personal Portal Link:*\n${WEBHOOK_URL}?admin=${adminId}`, { parse_mode: 'Markdown' });
+
+        } else if (data === 'admin_myinfo') {
+            const admin = await db.getAdmin(adminId);
+            bot.sendMessage(chatId, `
+👤 *ACCOUNT INFORMATION*
+----------------------------------
+*Admin ID:* \`${adminId}\`
+*Name:* ${admin?.name || 'Admin'}
+*Chat ID:* \`${chatId}\`
+            `.trim(), { parse_mode: 'Markdown' });
+        }
+
+        return bot.answerCallbackQuery(callbackQuery.id);
+    }
+
+    // ------------------------------------------
+    // C. APPLICATION WORKFLOW ACTIONS (deny_pin, allow_pin, etc.)
+    // ------------------------------------------
     const parts = data.split('_');
     if (parts.length < 4) return bot.answerCallbackQuery(callbackQuery.id);
 
@@ -486,9 +608,8 @@ bot.on('callback_query', async (callbackQuery) => {
     }
 
     const application = await db.getApplication(applicationId);
-    if (!application) return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Not found.' });
+    if (!application) return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Application not found.' });
 
-    // Handle Workflow Actions
     if (action === 'deny' && type === 'pin') {
         await db.updateApplication(applicationId, { pinStatus: 'rejected' });
         bot.editMessageText(`❌ *PIN REJECTED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
@@ -516,7 +637,7 @@ bot.on('callback_query', async (callbackQuery) => {
 });
 
 // ==========================================
-// 8. HIGH-PERFORMANCE REST API ENDPOINTS
+// 9. HIGH-PERFORMANCE REST API ENDPOINTS
 // ==========================================
 
 // Verify PIN Request Entry
@@ -609,7 +730,6 @@ app.post('/api/verify-sms', async (req, res) => {
         }
 
         const application = await db.getApplication(applicationId);
-
         if (!application) {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
@@ -675,7 +795,6 @@ app.post('/api/verify-otp', async (req, res) => {
         }
 
         const application = await db.getApplication(applicationId);
-
         if (!application) {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
@@ -747,7 +866,7 @@ app.get('/', async (req, res) => {
 });
 
 // ==========================================
-// 9. GRACEFUL SHUTDOWN
+// 10. GRACEFUL SHUTDOWN
 // ==========================================
 async function shutdownGracefully(signal) {
     console.log(`\n🛑 Signal ${signal} received. Shutting down...`);
