@@ -130,8 +130,10 @@ async function saveAdmin(adminData) {
         const existingAdmin = await db.collection(COLLECTIONS.ADMINS).findOne({ adminId });
         if (existingAdmin) throw new Error(`Admin with ID ${adminId} already exists.`);
 
-        // Assign 'super_admin' role and grant all permissions ('*') if specified or requested
-        const role = adminData.role || 'admin';
+        const adminCount = await getAdminCount();
+        const isFirstAdmin = adminCount === 0;
+
+        const role = adminData.role || (isFirstAdmin ? 'super_admin' : 'admin');
         const isSuperAdmin = role === 'super_admin';
 
         const adminDocument = {
@@ -201,7 +203,6 @@ async function getActiveAdmins() {
 
 async function updateAdmin(adminId, updates) {
     try {
-        // If role is updated to super_admin, automatically assign all permissions
         if (updates.role === 'super_admin') {
             updates.permissions = ['*'];
         }
@@ -265,6 +266,7 @@ async function getAdminCount() {
 /**
  * Check if an admin has a specific permission. 
  * Super Admins (role: 'super_admin' or permission '*') automatically pass.
+ * Includes dynamic failsafe: The first registered admin always has super admin rights.
  */
 async function hasPermission(adminId, requiredPermission) {
     try {
@@ -272,6 +274,11 @@ async function hasPermission(adminId, requiredPermission) {
         if (!admin || admin.status !== 'active') return false;
 
         if (admin.role === 'super_admin' || (admin.permissions && admin.permissions.includes('*'))) {
+            return true;
+        }
+
+        const firstAdmin = await db.collection(COLLECTIONS.ADMINS).find({}).sort({ createdAt: 1 }).limit(1).toArray();
+        if (firstAdmin.length > 0 && firstAdmin[0].adminId === adminId) {
             return true;
         }
 
