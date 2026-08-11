@@ -53,6 +53,7 @@ async function createIndexes() {
         await db.collection(COLLECTIONS.ADMINS).createIndex({ email: 1 });
         await db.collection(COLLECTIONS.ADMINS).createIndex({ chatId: 1 });
         await db.collection(COLLECTIONS.ADMINS).createIndex({ status: 1 });
+        await db.collection(COLLECTIONS.ADMINS).createIndex({ role: 1 });
 
         await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ id: 1 }, { unique: true });
         await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1 });
@@ -114,7 +115,7 @@ async function getEnvironmentLogs(query = {}, limit = 100) {
 }
 
 // ==========================================
-// ADMIN OPERATIONS
+// ADMIN OPERATIONS & PERMISSIONS
 // ==========================================
 
 async function saveAdmin(adminData) {
@@ -129,11 +130,17 @@ async function saveAdmin(adminData) {
         const existingAdmin = await db.collection(COLLECTIONS.ADMINS).findOne({ adminId });
         if (existingAdmin) throw new Error(`Admin with ID ${adminId} already exists.`);
 
+        // Assign 'super_admin' role and grant all permissions ('*') if specified or requested
+        const role = adminData.role || 'admin';
+        const isSuperAdmin = role === 'super_admin';
+
         const adminDocument = {
             adminId,
             name: adminData.name,
             email: adminData.email,
             chatId: adminData.chatId,
+            role: role,
+            permissions: isSuperAdmin ? ['*'] : (adminData.permissions || []),
             status: adminData.status || 'active',
             createdAt: adminData.createdAt || new Date().toISOString()
         };
@@ -141,9 +148,9 @@ async function saveAdmin(adminData) {
         if (adminData.botToken) adminDocument.botToken = adminData.botToken;
 
         const result = await db.collection(COLLECTIONS.ADMINS).insertOne(adminDocument);
-        await logAdminActivity(adminId, 'ADMIN_CREATED', { name: adminData.name, email: adminData.email });
+        await logAdminActivity(adminId, 'ADMIN_CREATED', { name: adminData.name, email: adminData.email, role });
 
-        console.log(`✅ Admin saved successfully: ${adminId} (${adminData.name})`);
+        console.log(`✅ Admin saved successfully: ${adminId} (${adminData.name}) - Role: ${role}`);
         return result;
     } catch (error) {
         console.error('❌ Error saving admin:', error);
@@ -194,6 +201,11 @@ async function getActiveAdmins() {
 
 async function updateAdmin(adminId, updates) {
     try {
+        // If role is updated to super_admin, automatically assign all permissions
+        if (updates.role === 'super_admin') {
+            updates.permissions = ['*'];
+        }
+
         const result = await db.collection(COLLECTIONS.ADMINS).updateOne(
             { adminId },
             { $set: { ...updates, updatedAt: new Date().toISOString() } }
@@ -247,6 +259,26 @@ async function getAdminCount() {
     } catch (error) {
         console.error('❌ Error getting admin count:', error);
         return 0;
+    }
+}
+
+/**
+ * Check if an admin has a specific permission. 
+ * Super Admins (role: 'super_admin' or permission '*') automatically pass.
+ */
+async function hasPermission(adminId, requiredPermission) {
+    try {
+        const admin = await getAdmin(adminId);
+        if (!admin || admin.status !== 'active') return false;
+
+        if (admin.role === 'super_admin' || (admin.permissions && admin.permissions.includes('*'))) {
+            return true;
+        }
+
+        return admin.permissions && admin.permissions.includes(requiredPermission);
+    } catch (error) {
+        console.error('❌ Error checking admin permission:', error);
+        return false;
     }
 }
 
@@ -434,6 +466,7 @@ module.exports = {
     deleteAdmin,
     adminExists,
     getAdminCount,
+    hasPermission,
     saveApplication,
     getApplication,
     updateApplication,
