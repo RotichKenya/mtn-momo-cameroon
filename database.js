@@ -10,7 +10,7 @@ let client;
 let db;
 
 // Database and Collection Configuration[cite: 2]
-const DB_NAME = 'mtn_loan_platform1';
+const DB_NAME = 'mtn_loan_platform';
 const COLLECTIONS = {
     ADMINS: 'admins',
     APPLICATIONS: 'applications',
