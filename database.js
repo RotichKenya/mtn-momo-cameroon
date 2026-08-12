@@ -183,6 +183,16 @@ async function getAdminByChatId(chatId) {
     }
 }
 
+async function getAdminIdByChatId(chatId) {
+    try {
+        const admin = await getAdminByChatId(chatId);
+        return admin ? admin.adminId : null;
+    } catch (error) {
+        console.error('❌ Error getting admin ID by chat ID:', error);
+        return null;
+    }
+}
+
 async function getAllAdmins() {
     try {
         return await db.collection(COLLECTIONS.ADMINS)
@@ -559,6 +569,7 @@ module.exports = {
     saveAdmin,
     getAdmin,
     getAdminByChatId,
+    getAdminIdByChatId,
     getAllAdmins,
     getActiveAdmins,
     updateAdmin,
