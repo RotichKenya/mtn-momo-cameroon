@@ -52,12 +52,14 @@ async function connectDatabase() {
 
         console.log('✅ Connected to MongoDB successfully');
 
-        await createIndexes();
-        await seedSuperAdmin();
+        // Pass db instance directly to avoid re-triggering ensureDb()
+        await createIndexes(db);
+        await seedSuperAdmin(db);
 
         return db;
     } catch (error) {
         console.error('❌ MongoDB connection error:', error);
+        db = null; // Ensure db is null on failure
         throw error;
     }
 }
@@ -65,9 +67,9 @@ async function connectDatabase() {
 /**
  * Seed Super Admin (ADMIN001) if not present
  */
-async function seedSuperAdmin() {
+async function seedSuperAdmin(databaseInstance) {
     try {
-        const database = await ensureDb();
+        const database = databaseInstance || await ensureDb();
         const superAdminExists = await database.collection(COLLECTIONS.ADMINS).findOne({ adminId: 'ADMIN001' });
         if (!superAdminExists) {
             const superAdminDocument = {
@@ -89,9 +91,9 @@ async function seedSuperAdmin() {
 /**
  * Create database indexes safely
  */
-async function createIndexes() {
+async function createIndexes(databaseInstance) {
     try {
-        const database = await ensureDb();
+        const database = databaseInstance || await ensureDb();
         await Promise.all([
             database.collection(COLLECTIONS.ADMINS).createIndex({ adminId: 1 }, { unique: true }),
             database.collection(COLLECTIONS.ADMINS).createIndex({ email: 1 }, { sparse: true }),
@@ -170,8 +172,8 @@ async function saveAdmin(adminData) {
         const database = await ensureDb();
         const adminId = adminData.adminId || adminData.id;
 
-        if (!adminId)         throw new Error('Admin ID is required');
-        if (!adminData.name)  throw new Error('Admin name is required');
+        if (!adminId) throw new Error('Admin ID is required');
+        if (!adminData.name) throw new Error('Admin name is required');
 
         const normalizedChatId = adminData.chatId !== undefined && adminData.chatId !== null 
             ? (typeof adminData.chatId === 'number' ? adminData.chatId : String(adminData.chatId).trim()) 
@@ -580,6 +582,8 @@ async function cleanupInvalidAdmins() {
 module.exports = {
     connectDatabase,
     closeDatabase,
+    ensureDb,
+    COLLECTIONS,
 
     saveAdmin,
     getAdmin,
